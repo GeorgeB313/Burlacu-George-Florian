@@ -1,0 +1,169 @@
+/* ---------- General ---------- */
+body {
+  margin: 0;
+  font-family: 'Poppins', sans-serif;
+  background-color: #0d1117;
+  color: #f0f0f0;
+}
+
+/* ---------- Header ---------- */
+.main-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  background-color: #161b22;
+  padding: 10px 20px;
+  position: sticky;
+  top: 0;
+}
+
+.logo {
+  font-size: 1.5rem;
+  color: #e5b90a;
+}
+
+nav {
+  display: flex;
+  gap: 10px;
+  align-items: center;
+}
+
+nav input {
+  padding: 6px 10px;
+  border-radius: 6px;
+  border: none;
+  background: #21262d;
+  color: white;
+}
+
+nav button {
+  background-color: #e5b90a;
+  color: #000;
+  padding: 6px 12px;
+  border-radius: 6px;
+  border: none;
+  font-weight: bold;
+  cursor: pointer;
+  transition: background 0.3s;
+}
+
+nav button:hover {
+  background-color: #f3d33f;
+}
+
+.logout-btn {
+  color: #ccc;
+  text-decoration: none;
+  font-size: 0.9rem;
+}
+
+/* ---------- Movies Grid ---------- */
+.content {
+  padding: 20px;
+}
+
+.movies-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+  gap: 20px;
+}
+
+.movie-card {
+  background: #161b22;
+  border-radius: 10px;
+  padding: 10px;
+  box-shadow: 0 0 6px rgba(255, 255, 255, 0.05);
+  transition: transform 0.2s;
+}
+
+.movie-card:hover {
+  transform: scale(1.03);
+}
+
+.movie-card h3 {
+  margin: 10px 0 5px;
+  color: #e5b90a;
+}
+
+.movie-card p {
+  font-size: 0.9rem;
+  color: #aaa;
+}
+
+/* ---------- Auth Pages ---------- */
+.auth-body {
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  height: 100vh;
+  background: linear-gradient(135deg, #0d1117, #1f2937);
+}
+
+.auth-container {
+  background: #161b22;
+  padding: 30px;
+  border-radius: 10px;
+  box-shadow: 0 0 10px rgba(255, 255, 255, 0.05);
+  width: 320px;
+  text-align: center;
+}
+
+.auth-container input {
+  width: 100%;
+  margin: 8px 0;
+  padding: 8px;
+  border-radius: 6px;
+  border: none;
+  background: #21262d;
+  color: white;
+}
+
+.auth-container button {
+  width: 100%;
+  padding: 10px;
+  margin-top: 10px;
+  background: #e5b90a;
+  border: none;
+  border-radius: 6px;
+  color: black;
+  font-weight: bold;
+  cursor: pointer;
+}
+
+.alt-link a {
+  color: #e5b90a;
+  text-decoration: none;
+}
+
+/* ---------- Modal ---------- */
+.modal {
+  display: none;
+  position: fixed;
+  inset: 0;
+  background: rgba(0,0,0,0.7);
+  justify-content: center;
+  align-items: center;
+}
+
+.modal-content {
+  background: #161b22;
+  padding: 20px;
+  border-radius: 10px;
+  width: 90%;
+  max-width: 400px;
+}
+
+.modal-content input, .modal-content textarea {
+  width: 100%;
+  margin: 8px 0;
+  padding: 8px;
+  border-radius: 6px;
+  border: none;
+  background: #21262d;
+  color: white;
+}
+
+.cancel-btn {
+  background: #444;
+  margin-left: 10px;
+}
