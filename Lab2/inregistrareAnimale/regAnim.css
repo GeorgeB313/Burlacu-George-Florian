@@ -1,0 +1,129 @@
+:root{
+  --bg: #f3f7fa;
+  --card-bg: #ffffff;
+  --accent: #2a9d8f;
+  --accent-dark: #21786a;
+  --muted: #6b7a80;
+  --btn-secondary: #b0bcc2;
+}
+
+*{box-sizing: border-box}
+html,body{height:100%}
+body{
+  margin:0;
+  font-family: Arial, Helvetica, sans-serif;
+  background: var(--bg);
+  color: #142026;
+  display:flex;
+  align-items:center;
+  justify-content:center;
+  padding:24px;
+}
+
+.form-card{
+  width:100%;
+  max-width:520px;
+  background:var(--card-bg);
+  border-radius:12px;
+  box-shadow: 0 14px 30px rgba(10,30,35,0.12);
+  padding:24px;
+}
+
+.form-card h1{
+  margin:0 0 8px 0;
+  font-size:1.3rem;
+  color:var(--accent-dark);
+}
+
+.form-card p{
+  margin:0 0 18px 0;
+  color:var(--muted);
+  font-size:0.95rem;
+}
+
+form label{
+  display:block;
+  font-size:0.95rem;
+  margin-bottom:12px;
+}
+
+input[type="text"],
+input[type="tel"],
+select,
+textarea{
+  display:block;
+  width:100%;
+  padding:10px 12px;
+  margin-top:6px;
+  border:1.5px solid #d6dde0;
+  border-radius:8px;
+  background:#fff;
+  font-size:0.95rem;
+  transition: border-color 0.15s ease, box-shadow 0.12s ease;
+}
+
+input:focus, select:focus, textarea:focus{
+  outline:none;
+  border-color:var(--accent);
+  box-shadow:0 0 0 4px rgba(42,157,143,0.08);
+}
+
+.inline-group{
+  border:0;
+  margin:8px 0 14px 0;
+  padding:0;
+}
+
+.inline-group legend{
+  font-weight:600;
+  font-size:0.95rem;
+  margin-bottom:8px;
+  color:var(--muted);
+}
+
+.inline-group label{
+  display:inline-flex;
+  align-items:center;
+  gap:8px;
+  margin-right:12px;
+  font-weight:500;
+  font-size:0.93rem;
+}
+
+.buttons{
+  display:flex;
+  gap:12px;
+  margin-top:18px;
+}
+
+.btn{
+  padding:10px 16px;
+  border-radius:8px;
+  border:0;
+  cursor:pointer;
+  font-weight:700;
+  font-size:0.95rem;
+  transition: transform 0.08s ease, box-shadow 0.12s ease, opacity 0.12s;
+}
+
+.btn.primary{
+  background:var(--accent);
+  color:#fff;
+  box-shadow: 0 6px 16px rgba(42,157,143,0.18);
+}
+
+.btn.primary:hover{ transform: translateY(-2px); opacity:0.98; }
+.btn.primary:active{ transform: translateY(0); }
+
+.btn.secondary{
+  background:var(--btn-secondary);
+  color:#14353a;
+}
+
+.btn.secondary:hover{ transform: translateY(-2px); opacity:0.98; }
+
+@media (max-width:520px){
+  .form-card{ padding:18px; }
+  .buttons{ flex-direction:column; }
+  .btn{ width:100%; }
+}
