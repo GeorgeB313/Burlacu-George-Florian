@@ -48,7 +48,43 @@ if (empty($_SESSION['user'])) {
         </div>
       </div>
       
-      <input type="text" id="search" placeholder="Caută filme...">
+      <!-- Search bar cu recomandări -->
+      <div class="search-container">
+        <input type="text" id="search" placeholder="🔍 Caută filme...">
+        <div class="search-suggestions" id="searchSuggestions">
+          <div class="suggestion-item" data-movie="Inception">
+            <span class="suggestion-icon">🎬</span>
+            <span class="suggestion-text">Inception</span>
+            <span class="suggestion-year">2010</span>
+          </div>
+          <div class="suggestion-item" data-movie="Interstellar">
+            <span class="suggestion-icon">🌌</span>
+            <span class="suggestion-text">Interstellar</span>
+            <span class="suggestion-year">2014</span>
+          </div>
+          <div class="suggestion-item" data-movie="The Dark Knight">
+            <span class="suggestion-icon">🦇</span>
+            <span class="suggestion-text">The Dark Knight</span>
+            <span class="suggestion-year">2008</span>
+          </div>
+          <div class="suggestion-item" data-movie="The Matrix">
+            <span class="suggestion-icon">💊</span>
+            <span class="suggestion-text">The Matrix</span>
+            <span class="suggestion-year">1999</span>
+          </div>
+          <div class="suggestion-item" data-movie="Fight Club">
+            <span class="suggestion-icon">👊</span>
+            <span class="suggestion-text">Fight Club</span>
+            <span class="suggestion-year">1999</span>
+          </div>
+          <div class="suggestion-item" data-movie="Parasite">
+            <span class="suggestion-icon">🏆</span>
+            <span class="suggestion-text">Parasite</span>
+            <span class="suggestion-year">2019</span>
+          </div>
+        </div>
+      </div>
+      
       <button id="addMovieBtn">+ Adaugă film</button>
       <a href="logout.php" class="logout-btn">Logout</a>
     </nav>
@@ -157,6 +193,25 @@ if (empty($_SESSION['user'])) {
         <textarea id="description" placeholder="Descriere scurtă"></textarea>
         <button type="submit">Salvează</button>
         <button type="button" class="cancel-btn" id="cancelModal">Anulează</button>
+      </form>
+    </div>
+  </div>
+
+  <!-- Modal Adaugă Film -->
+  <div id="addMovieModal" class="modal">
+    <div class="modal-content">
+      <h2>🎬 Adaugă Film Nou</h2>
+      <form method="POST" action="index.php">
+        <input type="text" name="titlu" placeholder="Titlu film *" required>
+        <input type="text" name="regizor" placeholder="Regizor" required>
+        <input type="number" name="an_lansare" placeholder="Anul lansării (ex: 2024)" min="1900" max="2099" required>
+        <input type="number" name="rating" placeholder="Rating (0-10)" step="0.1" min="0" max="10" required>
+        <textarea name="descriere" placeholder="Descriere scurtă a filmului" required></textarea>
+        
+        <div class="modal-buttons">
+          <button type="submit" name="adauga_film">✓ Salvează</button>
+          <button type="button" id="cancelBtn">✕ Anulează</button>
+        </div>
       </form>
     </div>
   </div>

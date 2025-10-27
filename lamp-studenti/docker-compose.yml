@@ -2,12 +2,14 @@ version: '3.8'
 
 services:
   apache:
-    image: php:8.1-apache
+    build:
+      context: .
+      dockerfile: Dockerfile
     container_name: lamp_apache
     volumes:
       - ./studenti:/var/www/html
     ports:
-      - "8080:80"
+      - "80:80"
     depends_on:
       - mysql
 
