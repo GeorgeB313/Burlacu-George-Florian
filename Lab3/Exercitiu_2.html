@@ -1,0 +1,29 @@
+<!DOCTYPE html>
+<html lang="ro">
+<head>
+  <meta charset="UTF-8">
+  <title>Exercitiul 2</title>
+</head>
+<body>
+  <script>
+    let tranzactie1 = true;
+    let tranzactie2 = false;
+    if (tranzactie1) {
+      console.log("Tranzactie acceptata!");
+    }
+    if (tranzactie2) {
+      console.log("Tranzactie acceptata!");
+    } else {
+      console.log("Tranzactie refuzata!");
+    }
+    /*
+      Descriere comportament:
+      - Pentru tranzactie1 = true, se execută blocul IF și se afișează "Tranzactie acceptata!".
+      - Pentru tranzactie2 = false, condiția IF este falsă, deci se execută ramura ELSE și se afișează "Tranzactie refuzata!".
+      Acest comportament apare deoarece instrucțiunea IF evaluează valoarea booleană a expresiei:
+      true → execută blocul IF,
+      false → trece la blocul ELSE (dacă există).
+    */
+  </script>
+</body>
+</html>
