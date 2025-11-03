@@ -34,6 +34,8 @@ if (empty($_SESSION['user'])) {
   <script defer src="script.js"></script>
 </head>
 <body>
+  <a id="top"></a>
+
   <header class="main-header">
     <h1 class="logo">🎬 MovieHub</h1>
     <nav>
@@ -89,94 +91,131 @@ if (empty($_SESSION['user'])) {
       <a href="logout.php" class="logout-btn">Logout</a>
     </nav>
   </header>
-
   <main class="content">
     <h2 class="page-title">🔥 Hot Movies</h2>
     
     <!-- Home cards -->
     <section class="cards-grid">
-      <!-- Card 1 -->
-      <article class="film-card">
-        <div class="poster" style="background-color: #1a1d24;">
-          <span class="fallback-title">Inception</span>
-        </div>
-        <div class="info">
-          <h3>Inception</h3>
-          <p>2010 • Sci‑Fi • 8.8/10</p>
-        </div>
-        <div class="hover">
-          <p>Heist SF în lumea viselor, regizat de Christopher Nolan.</p>
-        </div>
+      <article class="film-card"
+               data-title="Inception" data-imdb="tt1375666"
+               data-year="2010" data-genre="Sci‑Fi" data-rating="8.8"
+               data-description="Dom Cobb este un hoț care fură secrete valoroase din subconștientul oamenilor în timpul somnului, când mintea este cea mai vulnerabilă."
+               data-color="#1a1d24" data-trailer-id="YoHD9XEInc0">
+        <div class="poster" style="background-color:#1a1d24;"><span class="fallback-title">Inception</span></div>
+        <div class="info"><h3>Inception</h3><p>2010 • Sci‑Fi • 8.8/10</p></div>
+        <div class="hover"><p>Dom Cobb este un hoț care fură secrete valoroase din subconștientul oamenilor în timpul somnului.</p></div>
       </article>
 
-      <!-- Card 2 -->
-      <article class="film-card">
-        <div class="poster" style="background-color: #1a2536;">
-          <span class="fallback-title">Interstellar</span>
-        </div>
-        <div class="info">
-          <h3>Interstellar</h3>
-          <p>2014 • Aventură/SF • 8.6/10</p>
-        </div>
-        <div class="hover">
-          <p>O echipă pornește într-o misiune printr-o gaură de vierme pentru a salva omenirea.</p>
-        </div>
+      <article class="film-card"
+               data-title="Interstellar" data-imdb="tt0816692"
+               data-year="2014" data-genre="Aventură/SF" data-rating="8.6"
+               data-description="O echipă de exploratori călătorește prin o gaură de vierme în spațiu într-o încercare de a asigura supraviețuirea omanității."
+               data-color="#1a2536" data-trailer-id="zSWdZVtXT7E">
+        <div class="poster" style="background-color:#1a2536;"><span class="fallback-title">Interstellar</span></div>
+        <div class="info"><h3>Interstellar</h3><p>2014 • Aventură/SF • 8.6/10</p></div>
+        <div class="hover"><p>O echipă de exploratori călătorește prin o gaură de vierme în spațiu.</p></div>
       </article>
 
-      <!-- Card 3 -->
-      <article class="film-card">
-        <div class="poster" style="background-color: #111318;">
-          <span class="fallback-title">The Dark Knight</span>
-        </div>
-        <div class="info">
-          <h3>The Dark Knight</h3>
-          <p>2008 • Acțiune • 9.0/10</p>
-        </div>
-        <div class="hover">
-          <p>Batman se confruntă cu Joker într-o luptă pentru sufletul orașului Gotham.</p>
-        </div>
+      <article class="film-card"
+               data-title="The Dark Knight" data-imdb="tt0468569"
+               data-year="2008" data-genre="Acțiune" data-rating="9.0"
+               data-description="Când amenințarea cunoscută sub numele de Joker face ravagii în Gotham, Batman trebuie să accepte una dintre cele mai mari provocări."
+               data-color="#111318" data-trailer-id="EXeTwQWrcwY">
+        <div class="poster" style="background-color:#111318;"><span class="fallback-title">The Dark Knight</span></div>
+        <div class="info"><h3>The Dark Knight</h3><p>2008 • Acțiune • 9.0/10</p></div>
+        <div class="hover"><p>Batman se confruntă cu Joker într-o luptă pentru sufletul orașului Gotham.</p></div>
       </article>
 
-      <!-- Card 4 -->
-      <article class="film-card">
-        <div class="poster" style="background-color: #0c1e22;">
-          <span class="fallback-title">The Matrix</span>
-        </div>
-        <div class="info">
-          <h3>The Matrix</h3>
-          <p>1999 • SF • 8.7/10</p>
-        </div>
-        <div class="hover">
-          <p>Un hacker descoperă adevărul despre realitate și își găsește destinul.</p>
-        </div>
+      <article class="film-card"
+               data-title="The Matrix" data-imdb="tt0133093"
+               data-year="1999" data-genre="SF" data-rating="8.7"
+               data-description="Un hacker descoperă adevărul despre realitate și își găsește destinul."
+               data-color="#0c1e22" data-trailer-id="vKQi3bBA1y8">
+        <div class="poster" style="background-color:#0c1e22;"><span class="fallback-title">The Matrix</span></div>
+        <div class="info"><h3>The Matrix</h3><p>1999 • SF • 8.7/10</p></div>
+        <div class="hover"><p>Un hacker descoperă adevărul despre realitate și își găsește destinul.</p></div>
       </article>
 
-      <!-- Card 5 -->
-      <article class="film-card">
-        <div class="poster" style="background-color: #222222;">
-          <span class="fallback-title">Fight Club</span>
-        </div>
-        <div class="info">
-          <h3>Fight Club</h3>
-          <p>1999 • Dramă • 8.8/10</p>
-        </div>
-        <div class="hover">
-          <p>Un insomniac și un vânzător de săpun pornesc un club subteran.</p>
-        </div>
+      <!-- FIX Fight Club: atributul data-description era întrerupt -->
+      <article class="film-card"
+               data-title="Fight Club" data-imdb="tt0137523"
+               data-year="1999" data-genre="Dramă" data-rating="8.8"
+               data-description="Un insomniac
+               data-color="#222222" data-trailer-id="SUXWAEX2jlg">
+        <div class="poster" style="background-color:#222222;"><span class="fallback-title">Fight Club</span></div>
+        <div class="info"><h3>Fight Club</h3><p>1999 • Dramă • 8.8/10</p></div>
+        <div class="hover"><p>Un insomniac și un vânzător de săpun pornesc un club subteran.</p></div>
       </article>
 
-      <!-- Card 6 -->
-      <article class="film-card">
-        <div class="poster" style="background-color: #252210;">
-          <span class="fallback-title">Parasite</span>
-        </div>
-        <div class="info">
-          <h3>Parasite</h3>
-          <p>2019 • Thriller • 8.5/10</p>
-        </div>
-        <div class="hover">
-          <p>Două familii din lumi diferite se intersectează cu consecințe neașteptate.</p>
-        </div>
+      <article class="film-card"
+               data-title="Parasite" data-imdb="tt6751668"
+               data-year="2019" data-genre="Thriller" data-rating="8.5"
+               data-description="Două familii din lumi diferite se intersectează cu consecințe neașteptate."
+               data-color="#252210" data-trailer-id="5xH0HfJHsaY">
+        <div class="poster" style="background-color:#252210;"><span class="fallback-title">Parasite</span></div>
+        <div class="info"><h3>Parasite</h3><p>2019 • Thriller • 8.5/10</p></div>
+        <div class="hover"><p>Două familii din lumi diferite se intersectează cu consecințe neașteptate.</p></div>
+      </article>
+
+      <!-- Noi carduri -->
+      <article class="film-card"
+               data-title="The Godfather" data-imdb="tt0068646"
+               data-year="1972" data-genre="Crimă" data-rating="9.2"
+               data-description="Saga familiei Corleone în lumea crimei organizate."
+               data-color="#1b1b1b" data-trailer-id="UaVTIH8mujA">
+        <div class="poster" style="background-color:#1b1b1b;"><span class="fallback-title">The Godfather</span></div>
+        <div class="info"><h3>The Godfather</h3><p>1972 • Crimă • 9.2/10</p></div>
+        <div class="hover"><p>Saga familiei Corleone în lumea crimei organizate.</p></div>
+      </article>
+
+      <article class="film-card"
+               data-title="Pulp Fiction" data-imdb="tt0110912"
+               data-year="1994" data-genre="Crimă" data-rating="8.9"
+               data-description="Povești interconectate despre crimă, răscumpărare și hazul situațiilor."
+               data-color="#2a1a1a" data-trailer-id="s7EdQ4FqbhY">
+        <div class="poster" style="background-color:#2a1a1a;"><span class="fallback-title">Pulp Fiction</span></div>
+        <div class="info"><h3>Pulp Fiction</h3><p>1994 • Crimă • 8.9/10</p></div>
+        <div class="hover"><p>Povești interconectate despre crimă, răscumpărare și hazul situațiilor.</p></div>
+      </article>
+
+      <article class="film-card"
+               data-title="The Shawshank Redemption" data-imdb="tt0111161"
+               data-year="1994" data-genre="Dramă" data-rating="9.3"
+               data-description="Prietenia a doi deținuți și speranța în mijlocul greutăților."
+               data-color="#1b263b" data-trailer-id="6hB3S9bIaco">
+        <div class="poster" style="background-color:#1b263b;"><span class="fallback-title">Shawshank Redemption</span></div>
+        <div class="info"><h3>The Shawshank Redemption</h3><p>1994 • Dramă • 9.3/10</p></div>
+        <div class="hover"><p>Povestea prieteniei a doi deținuți și a speranței.</p></div>
+      </article>
+
+      <article class="film-card"
+               data-title="Gladiator" data-imdb="tt0172495"
+               data-year="2000" data-genre="Acțiune" data-rating="8.5"
+               data-description="Un general roman devine gladiator pentru a se răzbuna."
+               data-color="#231a14" data-trailer-id="owK1qxDselE">
+        <div class="poster" style="background-color:#231a14;"><span class="fallback-title">Gladiator</span></div>
+        <div class="info"><h3>Gladiator</h3><p>2000 • Acțiune • 8.5/10</p></div>
+        <div class="hover"><p>Un general roman devine gladiator pentru a se răzbuna.</p></div>
+      </article>
+
+      <article class="film-card"
+               data-title="Joker" data-imdb="tt7286456"
+               data-year="2019" data-genre="Dramă" data-rating="8.4"
+               data-description="Originea unui personaj emblematic – transformarea în Joker."
+               data-color="#1a1f1d" data-trailer-id="zAGVQLHvwOY">
+        <div class="poster" style="background-color:#1a1f1d;"><span class="fallback-title">Joker</span></div>
+        <div class="info"><h3>Joker</h3><p>2019 • Dramă • 8.4/10</p></div>
+        <div class="hover"><p>Originea unui personaj emblematic – transformarea în Joker.</p></div>
+      </article>
+
+      <article class="film-card"
+               data-title="Dune: Part Two" data-imdb="tt15239678"
+               data-year="2024" data-genre="SF" data-rating="8.6"
+               data-description="Paul Atreides își unește forțele cu fremenii pentru a-și răzbuna familia."
+               data-color="#0f1d21" data-trailer-id="U2Qp5pL3ovA">
+        <div class="poster" style="background-color:#0f1d21;"><span class="fallback-title">Dune: Part Two</span></div>
+        <div class="info"><h3>Dune: Part Two</h3><p>2024 • SF • 8.6/10</p></div>
+        <div class="hover"><p>Paul Atreides își unește forțele cu fremenii.</p></div>
       </article>
     </section>
   </main>
@@ -215,5 +254,88 @@ if (empty($_SESSION['user'])) {
       </form>
     </div>
   </div>
+
+  <!-- Modal Detalii Film -->
+  <div id="movieDetailsModal" class="modal">
+    <div class="movie-details-content">
+      <button class="close-details" id="closeDetailsBtn">✕</button>
+      
+      <!-- Trailer YouTube -->
+      <div class="trailer-container" id="trailerContainer">
+        <div class="loading-spinner"></div>
+      </div>
+      
+      <div class="details-header">
+        <div class="details-poster" id="detailsPoster">
+          <span class="details-title" id="detailsPosterTitle"></span>
+        </div>
+        <div class="details-info">
+          <h1 id="detailsTitle">Se încarcă...</h1>
+          <div class="details-meta">
+            <span class="meta-item" id="detailsYear">-</span>
+            <span class="meta-item" id="detailsGenre">-</span>
+            <span class="meta-item" id="detailsRuntime">⏱ -</span>
+            <span class="meta-rating" id="detailsRating">-</span>
+          </div>
+          <p class="details-description" id="detailsDescription">Se încarcă...</p>
+          
+          <div class="crew-info">
+            <div class="crew-item">
+              <span class="crew-label">🎬 Director:</span>
+              <span class="crew-value" id="directorName">-</span>
+            </div>
+            <div class="crew-item">
+              <span class="crew-label">🎭 Actori:</span>
+              <span class="crew-value" id="actorsList">-</span>
+            </div>
+          </div>
+          
+          <div class="details-actions">
+            <button class="detail-btn watchlist-detail-btn" id="detailsWatchlistBtn">
+              <span>+ Adaugă în Watchlist</span>
+            </button>
+            <button class="detail-btn share-btn">
+              <span>🔗 Share</span>
+            </button>
+          </div>
+        </div>
+      </div>
+      
+      <div class="details-sections">
+        <div class="details-section">
+          <h3>📊 Statistici</h3>
+          <div class="stats-grid">
+            <div class="stat-item">
+              <span class="stat-label">⭐ Rating IMDB</span>
+              <span class="stat-value" id="statRating">-</span>
+            </div>
+            <div class="stat-item">
+              <span class="stat-label">📅 An lansare</span>
+              <span class="stat-value" id="statYear">-</span>
+            </div>
+            <div class="stat-item">
+              <span class="stat-label">🎬 Gen</span>
+              <span class="stat-value" id="statGenre">-</span>
+            </div>
+            <div class="stat-item">
+              <span class="stat-label">⏱ Durată</span>
+              <span class="stat-value" id="statRuntime">-</span>
+            </div>
+            <div class="stat-item">
+              <span class="stat-label">👥 Voturi</span>
+              <span class="stat-value" id="statVotes">-</span>
+            </div>
+          </div>
+        </div>
+        
+        <div class="details-section">
+          <h3>💬 Despre film</h3>
+          <p id="aboutMovie" class="about-text">Se încarcă...</p>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <a href="#top" id="backToTop" aria-label="Mergi sus">⬆</a>
 </body>
 </html>
