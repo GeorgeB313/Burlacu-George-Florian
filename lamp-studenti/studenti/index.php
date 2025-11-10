@@ -32,25 +32,32 @@ if (empty($_SESSION['user'])) {
   <title>MovieHub - Home</title>
   <link rel="stylesheet" href="style.css">
   <script defer src="script.js"></script>
+  <!-- Lucide Icons -->
+  <script src="https://unpkg.com/lucide@latest"></script>
 </head>
 <body>
-  <a id="top"></a>
+  <!-- Ancoră top simplă -->
+  <div id="top"></div>
 
   <header class="main-header">
     <h1 class="logo">🎬 MovieHub</h1>
     <nav>
-      <a href="index.php" class="nav-link active">Home</a>
-      <a href="watchlist.php" class="nav-link">Watchlist</a>
+      <a href="index.php" class="nav-link nav-home active">
+        <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m3 9 9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"></path><polyline points="9 22 9 12 15 12 15 22"></polyline></svg>
+      </a>
+      <a href="watchlist.php" class="nav-link nav-watchlist">
+        <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m19 21-7-4-7 4V5a2 2 0 0 1 2-2h10a2 2 0 0 1 2 2z"></path></svg>
+      </a>
       
       <div class="dropdown">
-        <a href="#" class="nav-link">Top Rated ▾</a>
+        <a href="#" class="nav-link nav-toprated">
+          <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2"></polygon></svg>
+        </a>
         <div class="dropdown-menu">
           <a href="top-rated.php?type=movies">Top Rated Movies</a>
           <a href="top-rated.php?type=series">Top Rated Series</a>
         </div>
-      </div>
-      
-      <!-- Search bar cu recomandări -->
+      </div>      <!-- Search bar cu recomandări -->
       <div class="search-container">
         <input type="text" id="search" placeholder="🔍 Caută filme...">
         <div class="search-suggestions" id="searchSuggestions">
@@ -87,8 +94,12 @@ if (empty($_SESSION['user'])) {
         </div>
       </div>
       
-      <button id="addMovieBtn">+ Adaugă film</button>
-      <a href="logout.php" class="logout-btn">Logout</a>
+      <button id="addMovieBtn">
+        <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12h14"></path><path d="M12 5v14"></path></svg>
+      </button>
+      <a href="logout.php" class="logout-btn">
+        <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"></path><polyline points="16 17 21 12 16 7"></polyline><line x1="21" x2="9" y1="12" y2="12"></line></svg>
+      </a>
     </nav>
   </header>
   <main class="content">
@@ -136,12 +147,12 @@ if (empty($_SESSION['user'])) {
         <div class="hover"><p>Un hacker descoperă adevărul despre realitate și își găsește destinul.</p></div>
       </article>
 
-      <!-- FIX Fight Club: atributul data-description era întrerupt -->
-      <article class="film-card"
-               data-title="Fight Club" data-imdb="tt0137523"
-               data-year="1999" data-genre="Dramă" data-rating="8.8"
-               data-description="Un insomniac
-               data-color="#222222" data-trailer-id="SUXWAEX2jlg">
+  <!-- FIX Fight Club: atributul data-description era întrerupt -->
+  <article class="film-card"
+       data-title="Fight Club" data-imdb="tt0137523"
+       data-year="1999" data-genre="Dramă" data-rating="8.8"
+       data-description="Un insomniac și un vânzător de săpun pornesc un club subteran."
+       data-color="#222222" data-trailer-id="SUXWAEX2jlg">
         <div class="poster" style="background-color:#222222;"><span class="fallback-title">Fight Club</span></div>
         <div class="info"><h3>Fight Club</h3><p>1999 • Dramă • 8.8/10</p></div>
         <div class="hover"><p>Un insomniac și un vânzător de săpun pornesc un club subteran.</p></div>
@@ -206,6 +217,36 @@ if (empty($_SESSION['user'])) {
         <div class="poster" style="background-color:#1a1f1d;"><span class="fallback-title">Joker</span></div>
         <div class="info"><h3>Joker</h3><p>2019 • Dramă • 8.4/10</p></div>
         <div class="hover"><p>Originea unui personaj emblematic – transformarea în Joker.</p></div>
+      </article>
+
+      <article class="film-card"
+               data-title="Forrest Gump" data-imdb="tt0109830"
+               data-year="1994" data-genre="Dramă" data-rating="8.8"
+               data-description="Povestea extraordinară a unui om simplu care trăiește momente istorice."
+               data-color="#1c2428" data-trailer-id="bLvqoHBptjg">
+        <div class="poster" style="background-color:#1c2428;"><span class="fallback-title">Forrest Gump</span></div>
+        <div class="info"><h3>Forrest Gump</h3><p>1994 • Dramă • 8.8/10</p></div>
+        <div class="hover"><p>Povestea extraordinară a unui om simplu care trăiește momente istorice.</p></div>
+      </article>
+
+      <article class="film-card"
+               data-title="Avatar" data-imdb="tt0499549"
+               data-year="2009" data-genre="SF/Aventură" data-rating="7.9"
+               data-description="Un paraplecic este trimis pe luna Pandora într-o misiune unică."
+               data-color="#0d1f2d" data-trailer-id="5PSNL1qE6VY">
+        <div class="poster" style="background-color:#0d1f2d;"><span class="fallback-title">Avatar</span></div>
+        <div class="info"><h3>Avatar</h3><p>2009 • SF/Aventură • 7.9/10</p></div>
+        <div class="hover"><p>Un paraplecic este trimis pe luna Pandora într-o misiune unică.</p></div>
+      </article>
+
+      <article class="film-card"
+               data-title="The Prestige" data-imdb="tt0482571"
+               data-year="2006" data-genre="Thriller/Mister" data-rating="8.5"
+               data-description="Doi magicieni rivali se angajează într-o competiție periculoasă."
+               data-color="#1a1410" data-trailer-id="ijXruSzfGEc">
+        <div class="poster" style="background-color:#1a1410;"><span class="fallback-title">The Prestige</span></div>
+        <div class="info"><h3>The Prestige</h3><p>2006 • Thriller/Mister • 8.5/10</p></div>
+        <div class="hover"><p>Doi magicieni rivali se angajează într-o competiție periculoasă.</p></div>
       </article>
 
       <article class="film-card"
@@ -336,6 +377,7 @@ if (empty($_SESSION['user'])) {
     </div>
   </div>
 
-  <a href="#top" id="backToTop" aria-label="Mergi sus">⬆</a>
+  <!-- Buton simplu Mergi sus -->
+  <a href="#top" id="backToTop">Sus</a>
 </body>
 </html>

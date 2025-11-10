@@ -1,10 +1,17 @@
+/* Font import - trebuie să fie primul în fișier */
+@import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;600;700&display=swap');
+
 /* ---------- General ---------- */
 body {
   margin: 0;
   font-family: 'Poppins', sans-serif;
   background-color: #0d1117;
   color: #f0f0f0;
+  /* Ascunde scrollbar-ul dar permite scroll (Firefox + overlay) */
+  scrollbar-width: none; /* Firefox */
 }
+body::-webkit-scrollbar { display: none; } /* Chrome, Edge, Safari */
+html { -ms-overflow-style: none; } /* IE/Edge Legacy */
 
 /* ---------- Header ---------- */
 .main-header {
@@ -17,6 +24,301 @@ body {
   display: flex;
   justify-content: space-between;
   align-items: center;
+  transition: padding .2s ease, box-shadow .2s ease;
+}
+
+/* ========== NAVBAR: Mereu icon-uri, hover pentru text ========== */
+
+/* Home link - icon implicit, text la hover */
+.nav-link.nav-home {
+  position: relative;
+  width: 40px;
+  height: 36px;
+  padding: 0 !important;
+  margin: 0;
+  display: inline-flex !important;
+  align-items: center;
+  justify-content: center;
+  overflow: hidden;
+  transition: width 0.3s ease, background 0.2s ease;
+  line-height: 1;
+  vertical-align: middle;
+  color: #c9d1d9;
+  white-space: nowrap;
+  border-radius: 6px;
+}
+
+.nav-link.nav-home svg {
+  width: 20px;
+  height: 20px;
+  display: block;
+  flex-shrink: 0;
+  position: absolute;
+  left: 50%;
+  transform: translateX(-50%);
+  transition: opacity 0.3s ease, transform 0.3s ease, stroke 0.2s ease;
+}
+
+.nav-link.nav-home::after {
+  content: 'Home';
+  opacity: 0;
+  transform: translateX(-10px);
+  transition: opacity 0.3s ease, transform 0.3s ease;
+  white-space: nowrap;
+  font-size: 14px;
+  font-weight: 600;
+  padding: 0 12px;
+  color: #000;
+}
+
+.nav-link.nav-home:hover {
+  width: auto;
+  background: #e5b90a;
+}
+
+.nav-link.nav-home:hover svg {
+  opacity: 0;
+  transform: translateX(-50%) scale(0.5);
+  stroke: #000;
+}
+
+.nav-link.nav-home:hover::after {
+  opacity: 1;
+  transform: translateX(0);
+}
+
+/* Watchlist link */
+.nav-link.nav-watchlist {
+  position: relative;
+  width: 40px;
+  height: 36px;
+  padding: 0 !important;
+  margin: 0;
+  display: inline-flex !important;
+  align-items: center;
+  justify-content: center;
+  overflow: hidden;
+  transition: width 0.3s ease, background 0.2s ease;
+  line-height: 1;
+  vertical-align: middle;
+  color: #c9d1d9;
+  white-space: nowrap;
+  border-radius: 6px;
+}
+
+.nav-link.nav-watchlist svg {
+  width: 20px;
+  height: 20px;
+  display: block;
+  flex-shrink: 0;
+  position: absolute;
+  left: 50%;
+  transform: translateX(-50%);
+  transition: opacity 0.3s ease, transform 0.3s ease;
+}
+
+.nav-link.nav-watchlist::after {
+  content: 'Watchlist';
+  opacity: 0;
+  transform: translateX(-10px);
+  transition: opacity 0.3s ease, transform 0.3s ease;
+  white-space: nowrap;
+  font-size: 14px;
+  font-weight: 500;
+  padding: 0 12px;
+}
+
+.nav-link.nav-watchlist:hover {
+  width: auto;
+  background: #21262d;
+}
+
+.nav-link.nav-watchlist:hover svg {
+  opacity: 0;
+  transform: translateX(-50%) scale(0.5);
+}
+
+.nav-link.nav-watchlist:hover::after {
+  opacity: 1;
+  transform: translateX(0);
+}
+
+/* Top Rated link */
+.nav-link.nav-toprated {
+  position: relative;
+  width: 40px;
+  height: 36px;
+  padding: 0 !important;
+  margin: 0;
+  display: inline-flex !important;
+  align-items: center;
+  justify-content: center;
+  overflow: hidden;
+  transition: width 0.3s ease, background 0.2s ease;
+  line-height: 1;
+  vertical-align: middle;
+  color: #c9d1d9;
+  white-space: nowrap;
+  border-radius: 6px;
+}
+
+.nav-link.nav-toprated svg {
+  width: 20px;
+  height: 20px;
+  display: block;
+  flex-shrink: 0;
+  position: absolute;
+  left: 50%;
+  transform: translateX(-50%);
+  transition: opacity 0.3s ease, transform 0.3s ease;
+}
+
+.nav-link.nav-toprated::after {
+  content: 'Top Rated';
+  opacity: 0;
+  transform: translateX(-10px);
+  transition: opacity 0.3s ease, transform 0.3s ease;
+  white-space: nowrap;
+  font-size: 14px;
+  font-weight: 500;
+  padding: 0 12px;
+}
+
+.nav-link.nav-toprated:hover {
+  width: auto;
+  background: #21262d;
+}
+
+.nav-link.nav-toprated:hover svg {
+  opacity: 0;
+  transform: translateX(-50%) scale(0.5);
+}
+
+.nav-link.nav-toprated:hover::after {
+  opacity: 1;
+  transform: translateX(0);
+}
+
+/* Buton Adaugă Film */
+nav button#addMovieBtn {
+  position: relative;
+  width: 40px;
+  height: 36px;
+  padding: 0 !important;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  overflow: hidden;
+  transition: width 0.3s ease, background 0.3s ease;
+  background-color: #e5b90a;
+  color: #000;
+  border-radius: 6px;
+  border: none;
+  font-weight: bold;
+  cursor: pointer;
+  white-space: nowrap;
+}
+
+nav button#addMovieBtn svg {
+  width: 20px;
+  height: 20px;
+  display: block;
+  flex-shrink: 0;
+  position: absolute;
+  left: 50%;
+  transform: translateX(-50%);
+  transition: opacity 0.3s ease, transform 0.3s ease;
+}
+
+nav button#addMovieBtn::after {
+  content: '+ Adaugă film';
+  opacity: 0;
+  transform: translateX(-10px);
+  transition: opacity 0.3s ease, transform 0.3s ease;
+  white-space: nowrap;
+  font-size: 14px;
+  font-weight: 600;
+  padding: 0 12px;
+}
+
+nav button#addMovieBtn:hover {
+  width: auto;
+  background-color: #f3d33f;
+}
+
+nav button#addMovieBtn:hover svg {
+  opacity: 0;
+  transform: translateX(-50%) scale(0.5);
+}
+
+nav button#addMovieBtn:hover::after {
+  opacity: 1;
+  transform: translateX(0);
+}
+
+/* Logout button */
+.logout-btn {
+  position: relative;
+  width: 40px;
+  height: 36px;
+  padding: 0 !important;
+  margin: 0;
+  display: inline-flex !important;
+  align-items: center;
+  justify-content: center;
+  overflow: hidden;
+  transition: width 0.3s ease, background 0.3s ease;
+  background: #da3633;
+  color: white;
+  border-radius: 8px;
+  text-decoration: none;
+  font-weight: 600;
+  line-height: 1;
+  vertical-align: middle;
+  white-space: nowrap;
+}
+
+.logout-btn svg {
+  width: 20px;
+  height: 20px;
+  display: block;
+  flex-shrink: 0;
+  position: absolute;
+  left: 50%;
+  transform: translateX(-50%);
+  transition: opacity 0.3s ease, transform 0.3s ease;
+}
+
+.logout-btn::after {
+  content: 'Logout';
+  opacity: 0;
+  transform: translateX(-10px);
+  transition: opacity 0.3s ease, transform 0.3s ease;
+  white-space: nowrap;
+  font-size: 14px;
+  font-weight: 600;
+  padding: 0 12px;
+}
+
+.logout-btn:hover {
+  width: auto;
+  background: #f85149;
+}
+
+.logout-btn:hover svg {
+  opacity: 0;
+  transform: translateX(-50%) scale(0.5);
+}
+
+.logout-btn:hover::after {
+  opacity: 1;
+  transform: translateX(0);
+}
+
+/* Search bar rămâne vizibil */
+.search-container {
+  position: relative;
+  display: inline-block;
 }
 
 .logo {
@@ -169,9 +471,6 @@ nav button:hover {
   background: #444;
   margin-left: 10px;
 }
-
-/* Font import - modernă (Inter). Dacă nu ai internet poți folosi stack-ul de fallback */
-@import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;600;700&display=swap');
 
 :root {
   --accent: #4f46e5; /* indigo-600 */
@@ -467,6 +766,7 @@ html, body {
 .film-card .hover p {
   display: -webkit-box;
   -webkit-line-clamp: 3;
+  line-clamp: 3;
   -webkit-box-orient: vertical;
   overflow: hidden;
 }
@@ -1078,7 +1378,7 @@ nav #search::placeholder {
 .watchlist-btn {
   margin-top: 8px;
   padding: 8px 14px;
-  background: #238636;
+  background: #6e7681;
   color: white;
   border: none;
   border-radius: 6px;
@@ -1109,23 +1409,28 @@ nav #search::placeholder {
 }
 
 .watchlist-btn:hover {
-  background: #2ea043;
+  background: #8b949e;
   transform: translateY(-2px);
-  box-shadow: 0 4px 12px rgba(35, 134, 54, 0.4);
+  box-shadow: 0 4px 12px rgba(110, 118, 129, 0.4);
 }
 
 .watchlist-btn:active {
   transform: translateY(0);
-  box-shadow: 0 2px 6px rgba(35, 134, 54, 0.3);
+  box-shadow: 0 2px 6px rgba(110, 118, 129, 0.3);
 }
 
 .watchlist-btn.in-watchlist {
-  background: #6e7681;
+  background: #238636;
 }
 
 .watchlist-btn.in-watchlist:hover {
-  background: #8b949e;
-  box-shadow: 0 4px 12px rgba(110, 118, 129, 0.4);
+  background: #da3633;
+  box-shadow: 0 4px 12px rgba(218, 54, 51, 0.4);
+}
+
+.watchlist-btn.hover-delete {
+  background: #da3633 !important;
+  box-shadow: 0 4px 12px rgba(218, 54, 51, 0.4) !important;
 }
 
 /* Butoane Watchlist Actions */
@@ -1765,35 +2070,22 @@ button.loading::after {
   cursor: pointer;
 }
 
-/* Buton Mergi sus */
+/* Buton Mergi sus — vizibil doar după puțin scroll */
 #backToTop {
   position: fixed;
-  right: 20px; bottom: 20px;
-  width: 44px; height: 44px;
-  border-radius: 50%;
-  display: grid; place-items: center;
-  color: #fff; background: #1f6feb;
+  right: 16px;
+  bottom: 16px;
+  padding: 8px 10px;
+  border-radius: 6px;
+  background: #333;
+  color: #fff;
   text-decoration: none;
-  border: 1px solid #30363d;
-  box-shadow: 0 6px 18px rgba(0,0,0,.35);
-  font-size: 18px;
-  z-index: 9999;
-  opacity: 0; pointer-events: none;
-  transition: opacity .2s ease, transform .2s ease, background .2s ease;
+  font-size: 14px;
+  z-index: 1000;
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity .2s ease;
 }
 #backToTop.show { opacity: 1; pointer-events: auto; }
-#backToTop:hover { transform: translateY(-2px); background: #388bfd; }
 
-html {
-  scroll-behavior: smooth; /* scroll lin la click pe buton */
-}
-
-/* dacă stilul inline din JS nu se injectează, păstrăm și în CSS */
-#backToTop {
-  position: fixed; right: 20px; bottom: 20px; width: 44px; height: 44px; border-radius: 50%;
-  display: grid; place-items: center; text-decoration: none; color: #fff; background: #1f6feb;
-  border: 1px solid #30363d; box-shadow: 0 6px 18px rgba(0,0,0,.35); font-size: 18px; z-index: 9999;
-  opacity: 0; pointer-events: none; transition: opacity .2s, transform .2s;
-}
-#backToTop.show { opacity: 1; pointer-events: auto; }
-#backToTop:hover { transform: translateY(-2px); }
+/* ========== FIN STILURI NAVBAR ========== */

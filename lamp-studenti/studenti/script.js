@@ -316,80 +316,106 @@ document.addEventListener('DOMContentLoaded', () => {
 
   // Watchlist (dacă ai endpoint)
   if (watchlistBtn) {
+    let isInWatchlist = false;
+    let originalText = '+ Adaugă în Watchlist';
+    
+    // Funcție pentru a schimba textul la hover
+    const updateHoverText = () => {
+      if (isInWatchlist) {
+        watchlistBtn.addEventListener('mouseenter', function handleMouseEnter() {
+          this.setAttribute('data-original-text', this.innerHTML);
+          this.innerHTML = '<span>Șterge din Watchlist?</span>';
+          this.classList.add('hover-delete');
+        });
+        
+        watchlistBtn.addEventListener('mouseleave', function handleMouseLeave() {
+          const original = this.getAttribute('data-original-text');
+          if (original) {
+            this.innerHTML = original;
+          }
+          this.classList.remove('hover-delete');
+        });
+      }
+    };
+    
     watchlistBtn.addEventListener('click', async function () {
       const movieTitle = detailsModal?.dataset.currentMovie;
       if (!movieTitle) return;
+      
       try {
-        const res = await fetch('add_to_watchlist.php', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
-          body: `movie=${encodeURIComponent(movieTitle)}`
-        });
-        const json = await res.json();
-        if (json.success) { this.innerHTML = '<span>✓ În Watchlist</span>'; this.style.background = '#6e7681'; this.disabled = true; }
-        else alert(json.message || 'Eroare la adăugare');
-      } catch { alert('Eroare de rețea'); }
+        if (isInWatchlist) {
+          // Șterge din watchlist
+          const res = await fetch('remove_from_watchlist.php', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+            body: `movie=${encodeURIComponent(movieTitle)}`
+          });
+          const json = await res.json();
+          
+          if (json.success) {
+            this.innerHTML = '<span>+ Adaugă în Watchlist</span>';
+            this.classList.remove('in-watchlist');
+            isInWatchlist = false;
+          } else {
+            alert(json.message || 'Eroare la ștergere');
+          }
+        } else {
+          // Adaugă în watchlist
+          const res = await fetch('add_to_watchlist.php', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+            body: `movie=${encodeURIComponent(movieTitle)}`
+          });
+          const json = await res.json();
+          
+          if (json.success) {
+            this.innerHTML = '<span>✓ În Watchlist</span>';
+            this.classList.add('in-watchlist');
+            isInWatchlist = true;
+            updateHoverText();
+          } else {
+            alert(json.message || 'Eroare la adăugare');
+          }
+        }
+      } catch { 
+        alert('Eroare de rețea'); 
+      }
     });
   }
 
   // Pornește încărcarea posterelor cardurilor
   hydrateCardPosters();
+});
 
-  // Buton "Mergi sus" – se asigură că există ancora și butonul
-  (function initBackToTop() {
-    // injectează stilul dacă lipsește
-    if (!document.getElementById('backToTopStyles')) {
-      const st = document.createElement('style');
-      st.id = 'backToTopStyles';
-      st.textContent = `
-        #backToTop{position:fixed;right:20px;bottom:20px;width:44px;height:44px;border-radius:50%;
-          display:grid;place-items:center;text-decoration:none;color:#fff;background:#1f6feb;border:1px solid #30363d;
-          box-shadow:0 6px 18px rgba(0,0,0,.35);font-size:18px;z-index:9999;opacity:0;pointer-events:none;
-          transition:opacity .2s, transform .2s;}
-        #backToTop.show{opacity:1;pointer-events:auto;}
-        #backToTop:hover{transform:translateY(-2px);}
-        html{scroll-behavior:smooth;}
-      `;
-      document.head.appendChild(st);
+// ========== SCROLL UI: Doar butonul "Sus" ==========
+// Navbar-ul e mereu icon-only cu hover pentru text, deci nu mai avem nevoie de clasa .compact
+window.addEventListener('load', function() {
+  console.log('🔥 Inițializare buton Sus...');
+  
+  const backToTop = document.getElementById('backToTop');
+  
+  if (!backToTop) {
+    console.error('❌ EROARE: Buton #backToTop nu a fost găsit!');
+    return;
+  }
+  
+  function handleScroll() {
+    const scrollY = window.scrollY || window.pageYOffset || document.documentElement.scrollTop;
+    const threshold = 20;
+    
+    if (scrollY > threshold) {
+      backToTop.classList.add('show');
+    } else {
+      backToTop.classList.remove('show');
     }
-
-    // ancora #top
-    let topAnchor = document.getElementById('top');
-    if (!topAnchor) {
-      topAnchor = document.createElement('div');
-      topAnchor.id = 'top';
-      document.body.prepend(topAnchor);
-    }
-    // butonul #backToTop
-    let btn = document.getElementById('backToTop');
-    if (!btn) {
-      btn = document.createElement('a');
-      btn.id = 'backToTop';
-      btn.href = '#top';
-      btn.setAttribute('aria-label', 'Mergi sus');
-      btn.textContent = '⬆';
-      document.body.appendChild(btn);
-    }
-
-    // prag mai mic (nu mai e minim 300px)
-    const computeThreshold = () => Math.max(120, Math.floor(window.innerHeight * 0.15));
-    let threshold = computeThreshold();
-
-    const toggle = () => {
-      threshold = computeThreshold();
-      const y = window.pageYOffset || document.documentElement.scrollTop || 0;
-      btn.classList.toggle('show', y > threshold);
-    };
-
-    window.addEventListener('scroll', toggle, { passive: true });
-    window.addEventListener('resize', toggle, { passive: true });
-    toggle();
-
-    btn.addEventListener('click', (e) => {
-      e.preventDefault();
-      window.scrollTo({ top: 0, behavior: 'smooth' });
-    });
-  })();
+  }
+  
+  window.addEventListener('scroll', handleScroll, { passive: true });
+  window.addEventListener('resize', handleScroll, { passive: true });
+  
+  // Apel inițial
+  handleScroll();
+  console.log('✅ Buton Sus inițializat!');
 });
 
 // animație highlight (siguranță)
