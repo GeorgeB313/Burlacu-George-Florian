@@ -1,0 +1,21 @@
+body {
+    font-family: Arial;
+    margin: 20px;
+}
+
+.produs {
+    padding: 20px;
+    border: 1px solid #999;
+    border-radius: 6px;
+    max-width: 400px;
+}
+
+#detalii.ascuns {
+    display: none;
+}
+
+button {
+    padding: 8px 12px;
+    cursor: pointer;
+    margin-bottom: 16px;
+}

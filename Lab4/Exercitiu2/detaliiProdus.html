@@ -1,0 +1,28 @@
+<!DOCTYPE html>
+<html lang="ro">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>Detalii produs</title>
+    <link rel="stylesheet" href="style.css">
+</head>
+<body>
+
+    <h1>Detalii produs</h1>
+
+    <div class="produs" role="region" aria-label="iPhone 17 Pro Max">
+        <h2>iPhone 17 Pro Max</h2>
+        <button id="btnDetalii" type="button" aria-expanded="false" aria-controls="detalii">Afișează detalii</button>
+
+        <div id="detalii" class="ascuns">
+            <img src="iphone17.png" alt="iPhone 17 Pro Max" width="225" height="225" loading="lazy">
+            <p>Design inovator pentru performanță pro excepțională.</p>
+            <p>Informațiile sunt valabile la data: 
+                <span id="dataProdus"></span>
+            </p>
+        </div>
+    </div>
+
+    <script src="script.js"></script>
+</body>
+</html>

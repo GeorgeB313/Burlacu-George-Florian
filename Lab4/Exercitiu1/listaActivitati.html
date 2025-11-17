@@ -1,0 +1,24 @@
+<!DOCTYPE html>
+<html lang="ro">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>Lista mea de activitati</title>
+    <link rel="stylesheet" href="style.css">
+</head>
+<body>
+
+    <h1>Lista mea de activitati</h1>
+    <p>Scrie o activitate si apasa pe buton sau Enter pentru a o adauga.</p>
+
+    <div class="card" role="region" aria-label="Formular adaugare activitate">
+        <label for="inputActivitate" class="sr-only">Activitate noua</label>
+        <input type="text" id="inputActivitate" placeholder="Introduceti activitatea">
+        <button id="btnAdauga" type="button" aria-label="Adauga activitatea introdusa">Adauga activitate</button>
+        <small id="hintActivitate">Dupa adaugare, activitatea va aparea mai jos cu data curenta.</small>
+        <ul id="listaActivitati"></ul>
+    </div>
+
+    <script src="script.js"></script>
+</body>
+</html>
