@@ -32,7 +32,9 @@ if (empty($_SESSION['user'])) {
 </head>
 <body>
   <header class="main-header">
-    <h1 class="logo">🎬 MovieHub</h1>
+    <div class="logo">
+      <img src="logo.jpeg" alt="MovieHub Logo">
+    </div>
     <nav>
       <a href="index.php" class="nav-link">Home</a>
       <a href="watchlist.php" class="nav-link active">Watchlist</a>

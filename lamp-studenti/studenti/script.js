@@ -23,7 +23,6 @@ document.addEventListener('DOMContentLoaded', () => {
   function setText(id, val) { const el = document.getElementById(id); if (el) el.textContent = val; }
   function showLoading() {
     setText('detailsTitle', 'Se încarcă...');
-    setText('detailsDescription', 'Așteptați...');
     setText('aboutMovie', 'Așteptați...');
     setText('detailsYear', '-'); setText('detailsGenre', '-'); setText('detailsRuntime', '⏱ -'); setText('detailsRating', '-');
     setText('directorName', '-'); setText('actorsList', '-');
@@ -83,6 +82,18 @@ document.addEventListener('DOMContentLoaded', () => {
     }
     return d;
   }
+  
+  // Funcție pentru a obține review-uri
+  async function tmdbReviews(id) {
+    const url = new URL(`https://api.themoviedb.org/3/movie/${id}/reviews`);
+    url.searchParams.set('api_key', TMDB_API_KEY);
+    url.searchParams.set('language', 'en-US');
+    const r = await fetch(url.toString());
+    if (!r.ok) throw new Error('TMDb reviews error');
+    const j = await r.json();
+    return j.results || [];
+  }
+  
   async function tmdbVideos(id, lang) {
     const url = new URL(`https://api.themoviedb.org/3/movie/${id}/videos`);
     url.searchParams.set('api_key', TMDB_API_KEY);
@@ -195,6 +206,280 @@ document.addEventListener('DOMContentLoaded', () => {
   }
   function hydrateCardPosters() { document.querySelectorAll('.film-card').forEach(setCardPoster); }
 
+  // ---------- Click pe suggestion => DETALII + TRAILER ----------
+  document.querySelectorAll('.suggestion-item').forEach(item => {
+    item.addEventListener('click', async (e) => {
+      e.preventDefault();
+      e.stopPropagation();
+      
+      // Hide search suggestions
+      const searchSuggestions = document.getElementById('searchSuggestions');
+      if (searchSuggestions) searchSuggestions.style.display = 'none';
+      
+      const title = item.dataset.movie || item.querySelector('.suggestion-text')?.textContent?.trim();
+      const yearHint = item.querySelector('.suggestion-year')?.textContent?.trim() || '';
+      const posterEl = document.getElementById('detailsPoster');
+      const posterTitle = document.getElementById('detailsPosterTitle');
+
+      // pre-loader + fallback culoare
+      showLoading();
+      const color = '#0d1117';
+      if (posterEl && posterTitle) {
+        posterEl.style.background = color;
+        posterEl.style.backgroundImage = 'none';
+        posterTitle.textContent = title || '';
+        posterTitle.style.display = 'block';
+      }
+      openModal();
+
+      try {
+        if (!TMDB_API_KEY || TMDB_API_KEY === 'YOUR_TMDB_KEY') throw new Error('Lipsește TMDb key');
+
+        // Caută filmul pe TMDb
+        const results = await tmdbSearch(title, yearHint);
+        const best = results
+          .sort((a,b)=>(b.vote_count||0)-(a.vote_count||0))
+          .find(r => (r.title||'').toLowerCase() === (title||'').toLowerCase() ||
+                     (r.release_date||'').startsWith(yearHint)) || results[0];
+        
+        if (!best?.id) throw new Error('TMDb search: no result');
+        
+        const tmdbId = best.id;
+        const d = await tmdbDetails(tmdbId);
+
+        // Poster în modal (din TMDb)
+        if (d.poster_path) {
+          posterEl.style.backgroundImage = `url(${POSTER_BASE}${d.poster_path})`;
+          posterEl.style.backgroundSize = 'cover';
+          posterEl.style.backgroundPosition = 'center';
+          if (posterTitle) posterTitle.style.display = 'none';
+        }
+
+        // Mapare câmpuri
+        const year = d.release_date ? String(d.release_date).slice(0, 4) : '-';
+        const genres = Array.isArray(d.genres) ? d.genres.map(g => g.name).join(', ') : '-';
+        const runtime = d.runtime ? `${d.runtime} min` : 'N/A';
+        const rating = d.vote_average ? d.vote_average.toFixed(1) : '-';
+        const votes = d.vote_count ? fmt(d.vote_count) : 'N/A';
+        const desc = d.overview && d.overview.trim() !== '' ? d.overview : 'Fără descriere.';
+        const directors = (d.credits?.crew || []).filter(p => p.job === 'Director').map(p => p.name);
+        const actors = (d.credits?.cast || []).slice(0, 6).map(p => p.name);
+
+        setText('detailsTitle', d.title || title || '');
+        setText('detailsYear', year);
+        setText('detailsGenre', genres);
+        setText('detailsRuntime', `⏱ ${runtime}`);
+        setText('detailsRating', `${rating}/10`);
+        setText('aboutMovie', desc);
+        setText('directorName', directors.length ? directors.join(', ') : 'N/A');
+        setText('actorsList', actors.length ? actors.join(', ') : 'N/A');
+        setText('statRating', `${rating}/10`);
+        setText('statYear', year);
+        setText('statGenre', genres);
+        setText('statRuntime', runtime);
+        setText('statVotes', votes);
+
+        // Încărcare review-uri
+        loadReviews(tmdbId);
+        
+        // Reset rating și textarea
+        resetReviewForm();
+
+        // Etapa 1: YouTube -> Etapa 2: TMDb -> Fallback local
+        const trailerKey = await resolveTrailerKey(d.title || title, year, tmdbId, item);
+        const tc = document.getElementById('trailerContainer');
+        if (tc) {
+          tc.innerHTML = trailerKey
+            ? `<iframe width="100%" height="100%" src="https://www.youtube.com/embed/${trailerKey}?autoplay=0" frameborder="0" allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture" allowfullscreen></iframe>`
+            : '<p style="text-align:center; color:#c9d1d9; padding:50px;">Trailer indisponibil</p>';
+        }
+
+        // memo
+        detailsModal.dataset.currentMovie = d.title || title || '';
+        hideLoading();
+      } catch (err) {
+        console.error('TMDb/Trailer error:', err);
+        hideLoading();
+        setText('detailsTitle', title || 'Eroare');
+        setText('aboutMovie', 'Nu s-au putut încărca detaliile filmului.');
+      }
+    });
+  });
+
+  // Funcție pentru a încărca și afișa review-uri
+  async function loadReviews(tmdbId) {
+    const userReviewsSection = document.getElementById('userReviewsSection');
+    
+    if (!userReviewsSection) return;
+    
+    try {
+      const reviews = await tmdbReviews(tmdbId);
+      
+      if (reviews.length === 0) {
+        userReviewsSection.innerHTML = '<p style="color: #8b949e;">Nu există review-uri disponibile.</p>';
+        return;
+      }
+      
+      // Toate review-urile (în secțiunea de jos)
+      userReviewsSection.innerHTML = reviews.map(review => {
+        const author = review.author || 'Anonymous';
+        const rating = review.author_details?.rating ? `⭐ ${review.author_details.rating}/10` : '';
+        const content = review.content || '';
+        const date = review.created_at ? new Date(review.created_at).toLocaleDateString('ro-RO') : '';
+        const initial = author.charAt(0).toUpperCase();
+        
+        return `
+          <div class="user-review-item">
+            <div class="user-review-header">
+              <div class="user-review-author">
+                <div class="user-review-avatar">${initial}</div>
+                <span class="user-review-name">${author}</span>
+              </div>
+              ${rating ? `<span class="user-review-rating">${rating}</span>` : ''}
+            </div>
+            <div class="user-review-content">${content}</div>
+            ${date ? `<div class="user-review-date">Publicat pe ${date}</div>` : ''}
+          </div>
+        `;
+      }).join('');
+      
+    } catch (err) {
+      console.error('Error loading reviews:', err);
+      userReviewsSection.innerHTML = '<p style="color: #8b949e;">Eroare la încărcarea review-urilor.</p>';
+    }
+  }
+  
+  // Funcție pentru a reseta formularul de review
+  function resetReviewForm() {
+    const stars = document.querySelectorAll('.star');
+    stars.forEach(star => star.classList.remove('active'));
+    stars.forEach(star => star.textContent = '☆');
+    document.getElementById('ratingValue').textContent = '0/10';
+    document.getElementById('reviewText').value = '';
+  }
+  
+  // Sistem de rating cu stele
+  let selectedRating = 0;
+  
+  document.querySelectorAll('.star').forEach(star => {
+    star.addEventListener('click', function() {
+      selectedRating = parseInt(this.dataset.rating);
+      updateStars(selectedRating);
+      document.getElementById('ratingValue').textContent = `${selectedRating}/10`;
+    });
+    
+    star.addEventListener('mouseenter', function() {
+      const rating = parseInt(this.dataset.rating);
+      updateStars(rating, true);
+    });
+  });
+  
+  document.querySelector('.star-rating').addEventListener('mouseleave', function() {
+    updateStars(selectedRating);
+  });
+  
+  function updateStars(rating, isHover = false) {
+    const stars = document.querySelectorAll('.star');
+    stars.forEach((star, index) => {
+      const starRating = parseInt(star.dataset.rating);
+      if (starRating <= rating) {
+        if (!isHover) star.classList.add('active');
+        star.textContent = '★';
+      } else {
+        if (!isHover) star.classList.remove('active');
+        star.textContent = '☆';
+      }
+    });
+  }
+  
+  // Buton submit review
+  document.getElementById('submitReviewBtn').addEventListener('click', function() {
+    const reviewText = document.getElementById('reviewText').value.trim();
+    
+    if (selectedRating === 0) {
+      alert('Te rugăm să selectezi un rating!');
+      return;
+    }
+    
+    if (reviewText === '') {
+      alert('Te rugăm să scrii un review!');
+      return;
+    }
+    
+    // Adaugă review-ul în lista
+    addUserReview(reviewText, selectedRating);
+    
+    // Reset formular
+    resetReviewForm();
+    selectedRating = 0;
+  });
+  
+  // Funcție pentru a adăuga review-ul utilizatorului în listă
+  function addUserReview(content, rating) {
+    const userReviewsSection = document.getElementById('userReviewsSection');
+    if (!userReviewsSection) return;
+    
+    // Obține numele utilizatorului din elementul userData
+    const userDataEl = document.getElementById('userData');
+    const userName = userDataEl ? userDataEl.dataset.username : 'Utilizator';
+    const initial = userName.charAt(0).toUpperCase();
+    const currentDate = new Date().toLocaleDateString('ro-RO');
+    
+    // Creează HTML-ul pentru noul review
+    const newReviewHTML = `
+      <div class="user-review-item" style="animation: slideIn 0.3s ease;">
+        <div class="user-review-header">
+          <div class="user-review-author">
+            <div class="user-review-avatar">${initial}</div>
+            <span class="user-review-name">${userName}</span>
+          </div>
+          <span class="user-review-rating">⭐ ${rating}/10</span>
+        </div>
+        <div class="user-review-content">${content}</div>
+        <div class="user-review-date">Publicat pe ${currentDate}</div>
+      </div>
+    `;
+    
+    // Verifică dacă există mesaj "Nu există review-uri"
+    const noReviewsMsg = userReviewsSection.querySelector('p');
+    if (noReviewsMsg) {
+      userReviewsSection.innerHTML = newReviewHTML;
+    } else {
+      // Adaugă la început
+      userReviewsSection.insertAdjacentHTML('afterbegin', newReviewHTML);
+    }
+    
+    // Notificare de succes
+    showNotification('Review trimis cu succes!', 'success');
+  }
+  
+  // Funcție pentru notificări
+  function showNotification(message, type = 'success') {
+    const notification = document.createElement('div');
+    notification.className = `notification notification-${type}`;
+    notification.textContent = message;
+    notification.style.cssText = `
+      position: fixed;
+      top: 20px;
+      right: 20px;
+      background: ${type === 'success' ? '#238636' : '#da3633'};
+      color: white;
+      padding: 15px 25px;
+      border-radius: 8px;
+      font-weight: 600;
+      z-index: 10000;
+      animation: slideInRight 0.3s ease;
+      box-shadow: 0 4px 12px rgba(0,0,0,0.3);
+    `;
+    
+    document.body.appendChild(notification);
+    
+    setTimeout(() => {
+      notification.style.animation = 'slideOutRight 0.3s ease';
+      setTimeout(() => notification.remove(), 300);
+    }, 3000);
+  }
+
   // ---------- Click pe card => DETALII + TRAILER ----------
   document.querySelectorAll('.film-card').forEach(card => {
     card.addEventListener('click', async (e) => {
@@ -258,7 +543,6 @@ document.addEventListener('DOMContentLoaded', () => {
         setText('detailsGenre', genres);
         setText('detailsRuntime', `⏱ ${runtime}`);
         setText('detailsRating', `${rating}/10`);
-        setText('detailsDescription', desc);
         setText('aboutMovie', desc);
         setText('directorName', directors.length ? directors.join(', ') : 'N/A');
         setText('actorsList', actors.length ? actors.join(', ') : 'N/A');
@@ -267,6 +551,12 @@ document.addEventListener('DOMContentLoaded', () => {
         setText('statGenre', genres);
         setText('statRuntime', runtime);
         setText('statVotes', votes);
+
+        // Încărcare review-uri
+        loadReviews(tmdbId);
+        
+        // Reset rating și textarea
+        resetReviewForm();
 
         // Etapa 1: YouTube -> Etapa 2: TMDb -> Fallback local
         const trailerKey = await resolveTrailerKey(d.title || title, year, tmdbId, card);
@@ -294,7 +584,6 @@ document.addEventListener('DOMContentLoaded', () => {
         setText('detailsGenre', genre);
         setText('detailsRuntime', '⏱ N/A');
         setText('detailsRating', `${rating}/10`);
-        setText('detailsDescription', desc);
         setText('aboutMovie', desc);
         setText('directorName', 'N/A');
         setText('actorsList', 'N/A');
@@ -385,6 +674,52 @@ document.addEventListener('DOMContentLoaded', () => {
 
   // Pornește încărcarea posterelor cardurilor
   hydrateCardPosters();
+
+  // ========== SEARCH FUNCTIONALITY ==========
+  const searchInput = document.getElementById('search');
+  const searchSuggestions = document.getElementById('searchSuggestions');
+
+  if (searchInput && searchSuggestions) {
+    // Show suggestions on focus
+    searchInput.addEventListener('focus', () => {
+      if (searchInput.value.trim() === '') {
+        searchSuggestions.style.display = 'block';
+      }
+    });
+
+    // Filter suggestions on input
+    searchInput.addEventListener('input', (e) => {
+      const query = e.target.value.toLowerCase().trim();
+      const allSuggestions = searchSuggestions.querySelectorAll('.suggestion-item');
+      
+      if (query === '') {
+        // Show all suggestions if empty
+        allSuggestions.forEach(item => item.style.display = 'flex');
+        searchSuggestions.style.display = 'block';
+      } else {
+        // Filter suggestions
+        let hasVisible = false;
+        allSuggestions.forEach(item => {
+          const movieName = (item.dataset.movie || '').toLowerCase();
+          const text = (item.querySelector('.suggestion-text')?.textContent || '').toLowerCase();
+          if (movieName.includes(query) || text.includes(query)) {
+            item.style.display = 'flex';
+            hasVisible = true;
+          } else {
+            item.style.display = 'none';
+          }
+        });
+        searchSuggestions.style.display = hasVisible ? 'block' : 'none';
+      }
+    });
+
+    // Hide suggestions when clicking outside
+    document.addEventListener('click', (e) => {
+      if (!searchInput.contains(e.target) && !searchSuggestions.contains(e.target)) {
+        searchSuggestions.style.display = 'none';
+      }
+    });
+  }
 });
 
 // ========== SCROLL UI: Doar butonul "Sus" ==========
@@ -424,6 +759,63 @@ style.textContent = `
   @keyframes highlight { 0%,100%{transform:scale(1);box-shadow:0 8px 24px rgba(0,0,0,.3);} 50%{transform:scale(1.05);box-shadow:0 12px 32px rgba(229,185,10,.5);} }
 `;
 document.head.appendChild(style);
+
+// Back to top în modal
+const modalBackToTop = document.getElementById('modalBackToTop');
+const movieDetailsModal = document.getElementById('movieDetailsModal');
+
+if (modalBackToTop && movieDetailsModal) {
+  const modalContent = movieDetailsModal.querySelector('.movie-details-content');
+  
+  // Afișează/ascunde butonul pe scroll în modal
+  if (modalContent) {
+    modalContent.addEventListener('scroll', () => {
+      if (modalContent.scrollTop > 300) {
+        modalBackToTop.classList.add('show');
+      } else {
+        modalBackToTop.classList.remove('show');
+      }
+    });
+  }
+  
+  // Click pe buton - scroll la început
+  modalBackToTop.addEventListener('click', () => {
+    if (modalContent) {
+      modalContent.scrollTo({
+        top: 0,
+        behavior: 'smooth'
+      });
+    }
+  });
+}
+
+// Back to top pe site - wrapped în DOMContentLoaded pentru siguranță
+document.addEventListener('DOMContentLoaded', () => {
+  const siteBackToTop = document.getElementById('siteBackToTop');
+
+  if (siteBackToTop) {
+    console.log('Site back to top button found!');
+    
+    // Afișează/ascunde butonul pe scroll
+    window.addEventListener('scroll', () => {
+      if (window.scrollY > 300) {
+        siteBackToTop.classList.add('show');
+      } else {
+        siteBackToTop.classList.remove('show');
+      }
+    });
+    
+    // Click pe buton - scroll la început
+    siteBackToTop.addEventListener('click', () => {
+      window.scrollTo({
+        top: 0,
+        behavior: 'smooth'
+      });
+    });
+  } else {
+    console.log('Site back to top button NOT found!');
+  }
+});
 
 // Detectare mobil + toggle clasă pentru CSS (rulează doar după ce există <body>)
 function setMobileClass() {

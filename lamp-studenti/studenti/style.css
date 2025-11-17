@@ -322,8 +322,16 @@ nav button#addMovieBtn:hover::after {
 }
 
 .logo {
-  font-size: 1.5rem;
-  color: #e5b90a;
+  display: flex;
+  align-items: center;
+  height: 50px;
+}
+
+.logo img {
+  height: 100%;
+  width: auto;
+  object-fit: contain;
+  border-radius: 4px;
 }
 
 nav {
@@ -1247,6 +1255,28 @@ nav #search::placeholder {
   }
 }
 
+@keyframes slideInRight {
+  from {
+    opacity: 0;
+    transform: translateX(100px);
+  }
+  to {
+    opacity: 1;
+    transform: translateX(0);
+  }
+}
+
+@keyframes slideOutRight {
+  from {
+    opacity: 1;
+    transform: translateX(0);
+  }
+  to {
+    opacity: 0;
+    transform: translateX(100px);
+  }
+}
+
 /* Responsive pentru search */
 @media (max-width: 768px) {
   nav #search {
@@ -1838,6 +1868,180 @@ button.loading::after {
   border-left: 4px solid #e5b90a;
 }
 
+/* Secțiune adăugare review (în zona de sus) */
+.add-review-section {
+  margin: 25px 0;
+  padding: 20px;
+  background: #0d1117;
+  border-radius: 10px;
+  border: 1px solid #21262d;
+}
+
+.add-review-section h3 {
+  color: #e6edf3;
+  font-size: 18px;
+  margin-bottom: 15px;
+  font-weight: 600;
+}
+
+.rating-input {
+  display: flex;
+  align-items: center;
+  gap: 15px;
+  margin-bottom: 15px;
+}
+
+.rating-input label {
+  color: #c9d1d9;
+  font-size: 15px;
+  font-weight: 600;
+}
+
+.star-rating {
+  display: flex;
+  gap: 5px;
+}
+
+.star {
+  font-size: 24px;
+  color: #8b949e;
+  cursor: pointer;
+  transition: all 0.2s ease;
+  user-select: none;
+}
+
+.star:hover,
+.star.active {
+  color: #e5b90a;
+  transform: scale(1.1);
+}
+
+.rating-value {
+  color: #e5b90a;
+  font-weight: 600;
+  font-size: 16px;
+  min-width: 50px;
+}
+
+#reviewText {
+  width: 100%;
+  max-width: 100%;
+  box-sizing: border-box;
+  background: #161b22;
+  border: 1px solid #30363d;
+  border-radius: 8px;
+  padding: 12px;
+  color: #e6edf3;
+  font-size: 14px;
+  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, Cantarell, sans-serif;
+  resize: vertical;
+  min-height: 100px;
+  margin-bottom: 12px;
+}
+
+#reviewText:focus {
+  outline: none;
+  border-color: #58a6ff;
+  box-shadow: 0 0 0 3px rgba(88, 166, 255, 0.1);
+}
+
+#reviewText::placeholder {
+  color: #8b949e;
+}
+
+.submit-review-btn {
+  background: #238636;
+  color: white;
+  border: none;
+  padding: 10px 20px;
+  border-radius: 6px;
+  font-size: 14px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.2s ease;
+}
+
+.submit-review-btn:hover {
+  background: #2ea043;
+  transform: translateY(-1px);
+}
+
+.submit-review-btn:active {
+  transform: translateY(0);
+}
+
+.review-date {
+  color: #8b949e;
+  font-size: 12px;
+  margin-top: 8px;
+}
+
+/* Secțiune review-uri utilizatori (în zona de jos) */
+.user-reviews-section {
+  display: flex;
+  flex-direction: column;
+  gap: 15px;
+}
+
+.user-review-item {
+  background: #161b22;
+  padding: 20px;
+  border-radius: 10px;
+  border-left: 4px solid #58a6ff;
+}
+
+.user-review-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 12px;
+  padding-bottom: 10px;
+  border-bottom: 1px solid #21262d;
+}
+
+.user-review-author {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.user-review-avatar {
+  width: 32px;
+  height: 32px;
+  border-radius: 50%;
+  background: #238636;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: white;
+  font-weight: 600;
+  font-size: 14px;
+}
+
+.user-review-name {
+  color: #58a6ff;
+  font-weight: 600;
+  font-size: 15px;
+}
+
+.user-review-rating {
+  color: #e5b90a;
+  font-size: 14px;
+  font-weight: 600;
+}
+
+.user-review-content {
+  color: #e6edf3;
+  font-size: 14px;
+  line-height: 1.8;
+  margin-bottom: 10px;
+}
+
+.user-review-date {
+  color: #8b949e;
+  font-size: 12px;
+}
+
 .details-actions {
   display: flex;
   gap: 12px;
@@ -2070,22 +2274,330 @@ button.loading::after {
   cursor: pointer;
 }
 
-/* Buton Mergi sus — vizibil doar după puțin scroll */
-#backToTop {
+/* Buton back to top în modal */
+.modal-back-to-top {
   position: fixed;
-  right: 16px;
-  bottom: 16px;
-  padding: 8px 10px;
-  border-radius: 6px;
-  background: #333;
-  color: #fff;
-  text-decoration: none;
-  font-size: 14px;
-  z-index: 1000;
+  right: 30px;
+  bottom: 30px;
+  width: 45px;
+  height: 45px;
+  border-radius: 50%;
+  background: #238636;
+  color: white;
+  border: none;
+  font-size: 20px;
+  font-weight: bold;
+  cursor: pointer;
+  z-index: 10001;
   opacity: 0;
   pointer-events: none;
-  transition: opacity .2s ease;
+  transition: all 0.3s ease;
+  box-shadow: 0 4px 12px rgba(35, 134, 54, 0.4);
+  display: flex;
+  align-items: center;
+  justify-content: center;
 }
-#backToTop.show { opacity: 1; pointer-events: auto; }
+
+.modal-back-to-top.show {
+  opacity: 1;
+  pointer-events: auto;
+}
+
+.modal-back-to-top:hover {
+  background: #2ea043;
+  transform: translateY(-3px);
+  box-shadow: 0 6px 16px rgba(35, 134, 54, 0.6);
+}
+
+.modal-back-to-top:active {
+  transform: translateY(-1px);
+}
+
+/* Buton back to top pe site */
+.site-back-to-top {
+  position: fixed;
+  right: 30px;
+  bottom: 30px;
+  width: 45px;
+  height: 45px;
+  border-radius: 50%;
+  background: #238636;
+  color: white;
+  border: none;
+  font-size: 20px;
+  font-weight: bold;
+  cursor: pointer;
+  z-index: 999;
+  opacity: 0;
+  pointer-events: none;
+  transition: all 0.3s ease;
+  box-shadow: 0 4px 12px rgba(35, 134, 54, 0.4);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.site-back-to-top.show {
+  opacity: 1;
+  pointer-events: auto;
+}
+
+.site-back-to-top:hover {
+  background: #2ea043;
+  transform: translateY(-3px);
+  box-shadow: 0 6px 16px rgba(35, 134, 54, 0.6);
+}
+
+.site-back-to-top:active {
+  transform: translateY(-1px);
+}
 
 /* ========== FIN STILURI NAVBAR ========== */
+
+/* ========== PAGINA SETĂRI ========== */
+.settings-content {
+  max-width: 800px;
+  margin: 0 auto;
+  padding: 40px 20px;
+}
+
+.settings-container {
+  display: flex;
+  flex-direction: column;
+  gap: 30px;
+}
+
+.settings-section {
+  background: #161b22;
+  border-radius: 12px;
+  padding: 30px;
+  border: 1px solid #21262d;
+}
+
+.settings-header {
+  display: flex;
+  align-items: center;
+  gap: 20px;
+  margin-bottom: 20px;
+}
+
+.user-avatar-large {
+  width: 80px;
+  height: 80px;
+  border-radius: 50%;
+  background: linear-gradient(135deg, #238636, #2ea043);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: white;
+  font-size: 32px;
+  font-weight: 700;
+  box-shadow: 0 4px 12px rgba(35, 134, 54, 0.3);
+}
+
+.user-info h3 {
+  color: #e6edf3;
+  font-size: 24px;
+  margin: 0 0 5px 0;
+}
+
+.user-status {
+  color: #8b949e;
+  font-size: 14px;
+  margin: 0;
+}
+
+.section-title {
+  color: #e6edf3;
+  font-size: 18px;
+  margin-bottom: 20px;
+  font-weight: 600;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.settings-form {
+  display: flex;
+  flex-direction: column;
+  gap: 20px;
+}
+
+.form-group {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.form-group label {
+  color: #c9d1d9;
+  font-size: 14px;
+  font-weight: 600;
+}
+
+.form-group input {
+  background: #0d1117;
+  border: 1px solid #30363d;
+  border-radius: 6px;
+  padding: 12px;
+  color: #e6edf3;
+  font-size: 14px;
+  transition: border-color 0.2s ease;
+}
+
+.form-group input:focus {
+  outline: none;
+  border-color: #58a6ff;
+  box-shadow: 0 0 0 3px rgba(88, 166, 255, 0.1);
+}
+
+.form-group input:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+}
+
+.settings-btn {
+  background: #238636;
+  color: white;
+  border: none;
+  padding: 12px 24px;
+  border-radius: 6px;
+  font-size: 14px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.2s ease;
+  align-self: flex-start;
+}
+
+.settings-btn:hover {
+  background: #2ea043;
+  transform: translateY(-1px);
+  box-shadow: 0 4px 12px rgba(35, 134, 54, 0.3);
+}
+
+.settings-btn:active {
+  transform: translateY(0);
+}
+
+.danger-section {
+  border-color: #da3633;
+}
+
+.danger-text {
+  color: #f85149;
+  font-size: 14px;
+  margin-bottom: 15px;
+  line-height: 1.6;
+}
+
+.danger-btn {
+  background: #da3633;
+}
+
+.danger-btn:hover {
+  background: #e5534b;
+  box-shadow: 0 4px 12px rgba(218, 54, 51, 0.3);
+}
+
+/* Modal pentru confirmare ștergere */
+.modal-content-small {
+  background: #161b22;
+  border-radius: 12px;
+  padding: 30px;
+  max-width: 500px;
+  width: 90%;
+  border: 1px solid #21262d;
+}
+
+.modal-content-small h3 {
+  color: #e6edf3;
+  font-size: 20px;
+  margin-bottom: 15px;
+}
+
+.modal-content-small p {
+  color: #c9d1d9;
+  font-size: 14px;
+  line-height: 1.6;
+  margin-bottom: 10px;
+}
+
+.modal-content-small strong {
+  color: #f85149;
+}
+
+.modal-actions {
+  display: flex;
+  gap: 12px;
+  margin-top: 25px;
+}
+
+.modal-actions button {
+  flex: 1;
+}
+
+/* Stiluri pentru nav-settings */
+.nav-link.nav-settings {
+  position: relative;
+  width: 40px;
+  height: 36px;
+  padding: 0 !important;
+  margin: 0;
+  display: inline-flex !important;
+  align-items: center;
+  justify-content: center;
+  overflow: hidden;
+  transition: width 0.3s ease, background 0.2s ease;
+  line-height: 1;
+  vertical-align: middle;
+  color: #c9d1d9;
+  white-space: nowrap;
+  border-radius: 6px;
+  background: transparent;
+  text-decoration: none;
+}
+
+.nav-link.nav-settings svg {
+  width: 20px;
+  height: 20px;
+  flex-shrink: 0;
+  display: block;
+  position: absolute;
+  left: 50%;
+  transform: translateX(-50%);
+  transition: opacity 0.3s ease, transform 0.3s ease;
+}
+
+.nav-link.nav-settings::after {
+  content: 'Setări';
+  margin-left: 8px;
+  font-size: 14px;
+  font-weight: 600;
+  opacity: 0;
+  transform: translateX(-10px);
+  transition: opacity 0.3s ease, transform 0.3s ease;
+  white-space: nowrap;
+}
+
+.nav-link.nav-settings:hover,
+.nav-link.nav-settings.active {
+  width: auto;
+  padding: 0 12px !important;
+  background: #58a6ff;
+  color: #ffffff;
+}
+
+.nav-link.nav-settings:hover svg,
+.nav-link.nav-settings.active svg {
+  opacity: 0;
+  transform: translateX(-50%) scale(0.5);
+}
+
+.nav-link.nav-settings:hover::after,
+.nav-link.nav-settings.active::after {
+  opacity: 1;
+  transform: translateX(0);
+}
+
+/* ========== FIN SETĂRI ========== */
+

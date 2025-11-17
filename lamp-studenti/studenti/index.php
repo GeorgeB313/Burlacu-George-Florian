@@ -40,7 +40,9 @@ if (empty($_SESSION['user'])) {
   <div id="top"></div>
 
   <header class="main-header">
-    <h1 class="logo">🎬 MovieHub</h1>
+    <div class="logo">
+      <img src="logo.jpeg" alt="MovieHub Logo">
+    </div>
     <nav>
       <a href="index.php" class="nav-link nav-home active">
         <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m3 9 9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"></path><polyline points="9 22 9 12 15 12 15 22"></polyline></svg>
@@ -97,11 +99,18 @@ if (empty($_SESSION['user'])) {
       <button id="addMovieBtn">
         <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12h14"></path><path d="M12 5v14"></path></svg>
       </button>
+      <a href="settings.php" class="nav-link nav-settings">
+        <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12.22 2h-.44a2 2 0 0 0-2 2v.18a2 2 0 0 1-1 1.73l-.43.25a2 2 0 0 1-2 0l-.15-.08a2 2 0 0 0-2.73.73l-.22.38a2 2 0 0 0 .73 2.73l.15.1a2 2 0 0 1 1 1.72v.51a2 2 0 0 1-1 1.74l-.15.09a2 2 0 0 0-.73 2.73l.22.38a2 2 0 0 0 2.73.73l.15-.08a2 2 0 0 1 2 0l.43.25a2 2 0 0 1 1 1.73V20a2 2 0 0 0 2 2h.44a2 2 0 0 0 2-2v-.18a2 2 0 0 1 1-1.73l.43-.25a2 2 0 0 1 2 0l.15.08a2 2 0 0 0 2.73-.73l.22-.39a2 2 0 0 0-.73-2.73l-.15-.08a2 2 0 0 1-1-1.74v-.5a2 2 0 0 1 1-1.74l.15-.09a2 2 0 0 0 .73-2.73l-.22-.38a2 2 0 0 0-2.73-.73l-.15.08a2 2 0 0 1-2 0l-.43-.25a2 2 0 0 1-1-1.73V4a2 2 0 0 0-2-2z"></path><circle cx="12" cy="12" r="3"></circle></svg>
+      </a>
       <a href="logout.php" class="logout-btn">
         <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"></path><polyline points="16 17 21 12 16 7"></polyline><line x1="21" x2="9" y1="12" y2="12"></line></svg>
       </a>
     </nav>
   </header>
+  
+  <!-- Date utilizator pentru JavaScript -->
+  <div id="userData" style="display: none;" data-username="<?php echo htmlspecialchars($_SESSION['user']); ?>"></div>
+  
   <main class="content">
     <h2 class="page-title">🔥 Hot Movies</h2>
     
@@ -318,7 +327,28 @@ if (empty($_SESSION['user'])) {
             <span class="meta-item" id="detailsRuntime">⏱ -</span>
             <span class="meta-rating" id="detailsRating">-</span>
           </div>
-          <p class="details-description" id="detailsDescription">Se încarcă...</p>
+          
+          <div class="add-review-section">
+            <h3>📝 Scrie un review</h3>
+            <div class="rating-input">
+              <label>Rating:</label>
+              <div class="star-rating">
+                <span class="star" data-rating="1">☆</span>
+                <span class="star" data-rating="2">☆</span>
+                <span class="star" data-rating="3">☆</span>
+                <span class="star" data-rating="4">☆</span>
+                <span class="star" data-rating="5">☆</span>
+                <span class="star" data-rating="6">☆</span>
+                <span class="star" data-rating="7">☆</span>
+                <span class="star" data-rating="8">☆</span>
+                <span class="star" data-rating="9">☆</span>
+                <span class="star" data-rating="10">☆</span>
+              </div>
+              <span class="rating-value" id="ratingValue">0/10</span>
+            </div>
+            <textarea id="reviewText" placeholder="Scrie părerea ta despre acest film..." rows="4"></textarea>
+            <button class="submit-review-btn" id="submitReviewBtn">Trimite Review</button>
+          </div>
           
           <div class="crew-info">
             <div class="crew-item">
@@ -373,11 +403,21 @@ if (empty($_SESSION['user'])) {
           <h3>💬 Despre film</h3>
           <p id="aboutMovie" class="about-text">Se încarcă...</p>
         </div>
+        
+        <div class="details-section">
+          <h3>💭 Review</h3>
+          <div id="userReviewsSection" class="user-reviews-section">
+            <p style="color: #8b949e;">Se încarcă review-uri...</p>
+          </div>
+        </div>
       </div>
+      
+      <!-- Buton back to top în modal -->
+      <button class="modal-back-to-top" id="modalBackToTop">↑</button>
     </div>
   </div>
 
-  <!-- Buton simplu Mergi sus -->
-  <a href="#top" id="backToTop">Sus</a>
+  <!-- Buton back to top pe site -->
+  <button class="site-back-to-top" id="siteBackToTop">↑</button>
 </body>
 </html>
