@@ -2,137 +2,123 @@
 session_start();
 header('Content-Type: application/json');
 
+define('REMEMBER_SECRET', 'NZcJe9lFUck5pNBEOhT2yM805nzRRyISKb195KMDHzt2hsg7h2');
+require_once __DIR__ . '/config/database.php';
+require_once __DIR__ . '/includes/session_helpers.php';
+
 if (empty($_SESSION['user'])) {
     echo json_encode(['success' => false, 'message' => 'Nu ești autentificat']);
     exit;
 }
 
-$currentUser = $_SESSION['user'];
-$data = json_decode(file_get_contents('php://input'), true);
+$pdo = db();
+hydrateUserSession($pdo);
+
+$currentUserId = $_SESSION['user_id'] ?? null;
+$currentUsername = $_SESSION['user'] ?? '';
+
+if (!$currentUserId) {
+    echo json_encode(['success' => false, 'message' => 'Sesiune invalidă']);
+    exit;
+}
+
+$data = json_decode(file_get_contents('php://input'), true) ?: [];
 $action = $data['action'] ?? '';
 
-// Fișier pentru utilizatori (simplu - poți folosi baza de date mai târziu)
-$usersFile = 'users.json';
+$respond = static function (bool $success, string $message, array $extra = []) {
+    echo json_encode(array_merge(['success' => $success, 'message' => $message], $extra));
+    exit;
+};
 
-function getUsers() {
-    global $usersFile;
-    if (!file_exists($usersFile)) {
-        return [];
-    }
-    $content = file_get_contents($usersFile);
-    return json_decode($content, true) ?: [];
-}
+try {
+    if ($action === 'change_username') {
+        $newUsername = trim($data['newUsername'] ?? '');
 
-function saveUsers($users) {
-    global $usersFile;
-    file_put_contents($usersFile, json_encode($users, JSON_PRETTY_PRINT));
-}
+        if ($newUsername === '') {
+            $respond(false, 'Username-ul nu poate fi gol.');
+        }
 
-// Schimbare Username
-if ($action === 'change_username') {
-    $newUsername = trim($data['newUsername'] ?? '');
-    
-    if (empty($newUsername)) {
-        echo json_encode(['success' => false, 'message' => 'Username-ul nu poate fi gol']);
-        exit;
-    }
-    
-    if ($newUsername === $currentUser) {
-        echo json_encode(['success' => false, 'message' => 'Acest username este deja folosit']);
-        exit;
-    }
-    
-    $users = getUsers();
-    
-    // Verifică dacă noul username există deja
-    if (isset($users[$newUsername])) {
-        echo json_encode(['success' => false, 'message' => 'Username-ul este deja luat']);
-        exit;
-    }
-    
-    // Actualizează username
-    if (isset($users[$currentUser])) {
-        $users[$newUsername] = $users[$currentUser];
-        unset($users[$currentUser]);
-        saveUsers($users);
-        
-        // Actualizează sesiunea
+        if ($newUsername === $currentUsername) {
+            $respond(false, 'Acest username este deja folosit.');
+        }
+
+        if (!preg_match('/^[A-Za-z0-9_.-]{3,30}$/', $newUsername)) {
+            $respond(false, 'Username-ul poate conține doar litere, cifre sau .-_ și minim 3 caractere.');
+        }
+
+        $checkStmt = $pdo->prepare('SELECT id FROM users WHERE username = :username LIMIT 1');
+        $checkStmt->execute(['username' => $newUsername]);
+        if ($checkStmt->fetch()) {
+            $respond(false, 'Username-ul este deja folosit.');
+        }
+
+        $updateStmt = $pdo->prepare('UPDATE users SET username = :username WHERE id = :id LIMIT 1');
+        $updateStmt->execute([
+            'username' => $newUsername,
+            'id' => $currentUserId,
+        ]);
+
         $_SESSION['user'] = $newUsername;
-        
-        // Actualizează watchlist-ul (redenumește fișierul)
-        $oldWatchlist = 'watchlist_' . $currentUser . '.json';
-        $newWatchlist = 'watchlist_' . $newUsername . '.json';
-        if (file_exists($oldWatchlist)) {
-            rename($oldWatchlist, $newWatchlist);
-        }
-        
-        echo json_encode(['success' => true, 'message' => 'Username actualizat cu succes']);
-    } else {
-        echo json_encode(['success' => false, 'message' => 'Utilizatorul nu există']);
-    }
-    exit;
-}
 
-// Schimbare Parolă
-if ($action === 'change_password') {
-    $currentPassword = $data['currentPassword'] ?? '';
-    $newPassword = $data['newPassword'] ?? '';
-    
-    if (empty($currentPassword) || empty($newPassword)) {
-        echo json_encode(['success' => false, 'message' => 'Toate câmpurile sunt obligatorii']);
-        exit;
-    }
-    
-    if (strlen($newPassword) < 6) {
-        echo json_encode(['success' => false, 'message' => 'Parola trebuie să aibă minimum 6 caractere']);
-        exit;
-    }
-    
-    $users = getUsers();
-    
-    if (!isset($users[$currentUser])) {
-        echo json_encode(['success' => false, 'message' => 'Utilizatorul nu există']);
-        exit;
-    }
-    
-    // Verifică parola curentă
-    if (!password_verify($currentPassword, $users[$currentUser])) {
-        echo json_encode(['success' => false, 'message' => 'Parola curentă este incorectă']);
-        exit;
-    }
-    
-    // Actualizează parola
-    $users[$currentUser] = password_hash($newPassword, PASSWORD_DEFAULT);
-    saveUsers($users);
-    
-    echo json_encode(['success' => true, 'message' => 'Parola actualizată cu succes']);
-    exit;
-}
-
-// Ștergere Cont
-if ($action === 'delete_account') {
-    $users = getUsers();
-    
-    if (isset($users[$currentUser])) {
-        // Șterge utilizatorul
-        unset($users[$currentUser]);
-        saveUsers($users);
-        
-        // Șterge watchlist-ul
-        $watchlistFile = 'watchlist_' . $currentUser . '.json';
-        if (file_exists($watchlistFile)) {
-            unlink($watchlistFile);
+        if (!empty($_COOKIE['remember'])) {
+            $expiry = time() + 60 * 60 * 24 * 30;
+            $cookieData = $newUsername . '|' . $expiry;
+            $hmac = hash_hmac('sha256', $cookieData, REMEMBER_SECRET);
+            setcookie('remember', base64_encode($cookieData . '|' . $hmac), $expiry, '/', '', isset($_SERVER['HTTPS']), true);
         }
-        
-        // Șterge sesiunea
+
+        $respond(true, 'Username actualizat cu succes.', ['username' => $newUsername]);
+    }
+
+    if ($action === 'change_password') {
+        $currentPassword = (string) ($data['currentPassword'] ?? '');
+        $newPassword = (string) ($data['newPassword'] ?? '');
+
+        if ($currentPassword === '' || $newPassword === '') {
+            $respond(false, 'Toate câmpurile sunt obligatorii.');
+        }
+
+        if (strlen($newPassword) < 6) {
+            $respond(false, 'Parola trebuie să aibă minimum 6 caractere.');
+        }
+
+        $userStmt = $pdo->prepare('SELECT password_hash FROM users WHERE id = :id LIMIT 1');
+        $userStmt->execute(['id' => $currentUserId]);
+        $userRow = $userStmt->fetch(PDO::FETCH_ASSOC);
+
+        if (!$userRow || !password_verify($currentPassword, $userRow['password_hash'])) {
+            $respond(false, 'Parola curentă este incorectă.');
+        }
+
+        $newHash = password_hash($newPassword, PASSWORD_DEFAULT);
+        $updateStmt = $pdo->prepare('UPDATE users SET password_hash = :hash WHERE id = :id LIMIT 1');
+        $updateStmt->execute([
+            'hash' => $newHash,
+            'id' => $currentUserId,
+        ]);
+
+        $respond(true, 'Parola a fost actualizată.');
+    }
+
+    if ($action === 'delete_account') {
+        $pdo->beginTransaction();
+        $deleteStmt = $pdo->prepare('DELETE FROM users WHERE id = :id LIMIT 1');
+        $deleteStmt->execute(['id' => $currentUserId]);
+
+        if ($deleteStmt->rowCount() === 0) {
+            $pdo->rollBack();
+            $respond(false, 'Contul nu a putut fi șters.');
+        }
+
+        $pdo->commit();
+        setcookie('remember', '', time() - 3600, '/');
         session_destroy();
-        
-        echo json_encode(['success' => true, 'message' => 'Contul a fost șters']);
-    } else {
-        echo json_encode(['success' => false, 'message' => 'Utilizatorul nu există']);
+
+        $respond(true, 'Contul a fost șters.');
     }
-    exit;
+
+    $respond(false, 'Acțiune invalidă.');
+} catch (PDOException $e) {
+    $respond(false, 'A apărut o eroare neașteptată.');
 }
 
-echo json_encode(['success' => false, 'message' => 'Acțiune invalidă']);
-?>

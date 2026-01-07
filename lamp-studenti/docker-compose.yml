@@ -12,6 +12,8 @@ services:
       - "80:80"
     depends_on:
       - mysql
+    environment:
+      - TMDB_API_KEY=c155c2567ed5d4f60645bdcbaf286670
 
   mysql:
     image: mysql:5.7
@@ -26,6 +28,7 @@ services:
       - "3308:3306"
     volumes:
       - db_data:/var/lib/mysql
+      - ./mysql/init:/docker-entrypoint-initdb.d:ro
 
 volumes:
   db_data:

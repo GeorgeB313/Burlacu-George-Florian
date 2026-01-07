@@ -15,10 +15,326 @@ document.addEventListener('DOMContentLoaded', () => {
     'Parasite': '5xH0HfJHsaY'
   };
 
+  const apiBase = '/api';
+  const pageContext = document.body?.dataset?.page || 'home';
+  const userId = Number(document.body?.dataset?.userId || 0);
+  const userRole = document.body?.dataset?.userRole || 'user';
+  const topRatedType = document.body?.dataset?.topType || 'movies';
+  const movieCache = new Map();
+  let activeCardRef = null;
+  let syncWatchlistButtonState = () => {};
+  let defaultSuggestionCache = null;
+  let defaultSuggestionsLoading = false;
+  const tabInstanceId = `${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 8)}`;
+  const WATCHLIST_SYNC_KEY = 'moviehub-watchlist-sync';
+  let broadcastChannel = null;
+  if (typeof BroadcastChannel !== 'undefined') {
+    try {
+      broadcastChannel = new BroadcastChannel(WATCHLIST_SYNC_KEY);
+    } catch (err) {
+      console.warn('BroadcastChannel unavailable, falling back to storage events.', err);
+      broadcastChannel = null;
+    }
+  }
+
+  const escapeHtml = (value = '') => String(value)
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;')
+    .replace(/'/g, '&#39;');
+
+  const metaFromMovie = (movie) => ({
+    movieId: movie.id,
+    title: movie.title,
+    imdb: movie.imdb_id,
+    tmdb: movie.tmdb_id,
+    year: movie.release_year,
+    color: movie.accent_color,
+    description: movie.overview,
+  });
+
+  const jsonFetch = async (url, options = {}) => {
+    const config = { credentials: 'same-origin', ...options };
+    config.headers = { Accept: 'application/json', ...(options.headers || {}) };
+    const response = await fetch(url, config);
+    if (!response.ok) {
+      let message = 'Eroare la interogarea serverului';
+      try {
+        const payload = await response.json();
+        message = payload.error || payload.message || message;
+      } catch (_) {}
+      throw new Error(message);
+    }
+    return response.json();
+  };
+
+  const buildFilmCardMarkup = (movie) => {
+    const rating = movie.rating_average ? Number(movie.rating_average).toFixed(1) : '—';
+    const genre = movie.genres ? movie.genres.split(',')[0].trim() : 'Gen necunoscut';
+    const year = movie.release_year || '—';
+    const hoverText = movie.overview ? `${movie.overview.slice(0, 180)}${movie.overview.length > 180 ? '…' : ''}` : 'Descoperă mai multe detalii în fereastra de informații.';
+    const accent = movie.accent_color || '#0d1117';
+
+    const category = movie.category === 'series' ? 'series' : 'movie';
+    const posterUrl = movie.poster_url ? String(movie.poster_url) : '';
+    const posterStyle = posterUrl
+      ? `background-color:${accent};background-image:url('${escapeHtml(posterUrl)}');background-size:cover;background-position:center;`
+      : `background-color:${accent};`;
+
+    return `
+      <article class="film-card"
+        data-movie-id="${movie.id || ''}"
+        data-category="${category}"
+        data-title="${escapeHtml(movie.title || '')}"
+        data-imdb="${movie.imdb_id || ''}"
+        data-tmdb="${movie.tmdb_id || ''}"
+        data-year="${year}"
+        data-genre="${escapeHtml(genre)}"
+        data-rating="${rating !== '—' ? rating : ''}"
+        data-description="${escapeHtml(movie.overview || '')}"
+        data-color="${accent}"
+        data-poster-url="${escapeHtml(posterUrl)}"
+        data-in-watchlist="${movie.in_watchlist ? '1' : '0'}"
+      >
+        <div class="poster" style="${posterStyle}">
+          <span class="fallback-title">${escapeHtml(movie.title || '')}</span>
+        </div>
+        <div class="info">
+          <h3>${escapeHtml(movie.title || '')}</h3>
+          <p>${year} • ${escapeHtml(genre)} • ${rating}/10</p>
+        </div>
+        <div class="hover">
+          <p>${escapeHtml(hoverText)}</p>
+        </div>
+      </article>
+    `;
+  };
+
+  const renderMovieGrid = (grid, movies, emptyMessage, options = {}) => {
+    if (!grid) return;
+    const { padToRow = 0 } = options;
+    if (!movies?.length) {
+      grid.innerHTML = `<div class="grid-placeholder empty">${emptyMessage}</div>`;
+      return;
+    }
+
+    let markup = movies.map((movie) => {
+      if (typeof movie.in_watchlist === 'undefined') {
+        movie.in_watchlist = false;
+      }
+      movieCache.set(movie.id, movie);
+      return buildFilmCardMarkup(movie);
+    }).join('');
+
+    if (padToRow > 1) {
+      const remainder = movies.length % padToRow;
+      if (remainder) {
+        const placeholdersNeeded = padToRow - remainder;
+        const placeholderMarkup = '<article class="film-card placeholder" data-placeholder="1" aria-hidden="true"></article>';
+        markup += placeholderMarkup.repeat(placeholdersNeeded);
+      }
+    }
+
+    grid.innerHTML = markup;
+
+    wireFilmCards(grid);
+    hydrateCardPosters(grid);
+  };
+
+  const showGridError = (grid, message) => {
+    if (!grid) return;
+    grid.innerHTML = `<div class="grid-placeholder error">${escapeHtml(message)}</div>`;
+  };
+
+  const loadHomeGrid = async () => {
+    const grid = document.getElementById('trendingGrid');
+    if (!grid) return;
+    try {
+      const { data } = await jsonFetch(`${apiBase}/movies.php?scope=trending&limit=12`);
+      renderMovieGrid(grid, data, 'Încă nu avem filme populare disponibile.');
+    } catch (err) {
+      showGridError(grid, err.message);
+    }
+  };
+
+  const loadTopRatedGrid = async () => {
+    const grid = document.getElementById('topRatedGrid');
+    if (!grid) return;
+    const typeParam = topRatedType === 'series' ? 'series' : 'movie';
+    try {
+      const { data } = await jsonFetch(`${apiBase}/movies.php?scope=top-rated&type=${typeParam}&limit=50`);
+      const emptyMessage = typeParam === 'series'
+        ? 'Încă nu avem seriale în baza de date. Adaugă câteva din panoul de admin.'
+        : 'Nu s-au găsit filme cu rating înalt.';
+      renderMovieGrid(grid, data, emptyMessage, { padToRow: 3 });
+    } catch (err) {
+      showGridError(grid, err.message);
+    }
+  };
+
+  const loadWatchlistGrid = async () => {
+    const grid = document.getElementById('watchlistGrid');
+    if (!grid) return;
+
+    if (!userId) {
+      showGridError(grid, 'Autentifică-te pentru a-ți vedea watchlist-ul.');
+      return;
+    }
+
+    try {
+      const { data } = await jsonFetch(`${apiBase}/watchlist.php`);
+      const normalized = data.map(item => ({
+        id: item.movie_id,
+        tmdb_id: item.tmdb_id,
+        imdb_id: item.imdb_id,
+        title: item.title,
+        release_year: item.release_year,
+        genres: item.genres,
+        rating_average: item.rating_average,
+        overview: item.overview,
+        accent_color: item.accent_color,
+        category: item.category === 'series' ? 'series' : 'movie',
+        poster_url: item.poster_url,
+        in_watchlist: true,
+      }));
+      renderMovieGrid(grid, normalized, 'Watchlist-ul tău este gol. Adaugă filme din lista principală.');
+    } catch (err) {
+      showGridError(grid, err.message);
+    }
+  };
+
+  const bootstrapPageData = () => {
+    if (pageContext === 'home') {
+      loadHomeGrid();
+    } else if (pageContext === 'top-rated') {
+      loadTopRatedGrid();
+    } else if (pageContext === 'watchlist') {
+      loadWatchlistGrid();
+    }
+  };
+
+  const wireFilmCards = (scope = document) => {
+    scope.querySelectorAll('.film-card').forEach(card => {
+      if (card.dataset.placeholder === '1') {
+        return;
+      }
+      if (card.dataset.bound === '1') return;
+      card.dataset.bound = '1';
+      card.addEventListener('click', () => handleFilmCardSelection(card));
+    });
+  };
+
   // ---------- UI ----------
   const detailsModal = document.getElementById('movieDetailsModal');
   const closeDetailsBtn = document.getElementById('closeDetailsBtn');
   const watchlistBtn = document.getElementById('detailsWatchlistBtn');
+  const addMovieBtn = document.getElementById('addMovieBtn');
+  const addMovieModal = document.getElementById('addMovieModal');
+  const cancelAddMovieBtn = document.getElementById('cancelBtn');
+  const adminToast = document.getElementById('adminToast');
+  const adminToastMessage = document.getElementById('adminToastMessage');
+  const totalMoviesCard = document.getElementById('totalMoviesCard');
+  const allTitlesModal = document.getElementById('allTitlesModal');
+  const closeAllTitlesBtn = document.getElementById('closeAllTitlesBtn');
+  const allTitlesSearch = document.getElementById('allTitlesSearch');
+  const allTitlesStatusFilter = document.getElementById('allTitlesStatusFilter');
+  const allTitlesCategoryFilter = document.getElementById('allTitlesCategoryFilter');
+  const allTitlesBody = document.getElementById('allTitlesBody');
+  const allTitlesMeta = document.getElementById('allTitlesMeta');
+  const allTitlesEmpty = document.getElementById('allTitlesEmpty');
+  const allTitlesTable = document.getElementById('allTitlesTable');
+  const allTitlesPrev = document.getElementById('allTitlesPrev');
+  const allTitlesNext = document.getElementById('allTitlesNext');
+  const allTitlesPage = document.getElementById('allTitlesPage');
+  const usersCard = document.getElementById('usersCard');
+  const allUsersModal = document.getElementById('allUsersModal');
+  const closeAllUsersBtn = document.getElementById('closeAllUsersBtn');
+  const allUsersBody = document.getElementById('allUsersBody');
+  const allUsersEmpty = document.getElementById('allUsersEmpty');
+  const allUsersTable = document.getElementById('allUsersTable');
+  const allUsersMeta = document.getElementById('allUsersMeta');
+
+  const refreshBodyScrollLock = () => {
+    const hasActiveModal = document.querySelector('.modal.active');
+    document.body.style.overflow = hasActiveModal ? 'hidden' : 'auto';
+  };
+
+  const showAddMovieConfirmation = (message) => {
+    const toast = document.getElementById('globalToast');
+    const toastMessage = document.getElementById('globalToastMessage');
+    if (!toast || !toastMessage) return;
+    toastMessage.textContent = message;
+    toast.classList.add('show');
+    setTimeout(() => toast.classList.remove('show'), 4000);
+  };
+
+  const refreshWatchlistViewIfNeeded = async () => {
+    if (pageContext === 'watchlist') {
+      await loadWatchlistGrid();
+    }
+  };
+
+  const updateAllCardsWatchlistState = (movieId, state) => {
+    const numericId = Number(movieId);
+    if (!numericId) return;
+    const normalizedState = state ? '1' : '0';
+    document.querySelectorAll(`.film-card[data-movie-id="${numericId}"]`).forEach((card) => {
+      card.dataset.inWatchlist = normalizedState;
+      if (card === activeCardRef && typeof syncWatchlistButtonState === 'function') {
+        syncWatchlistButtonState(card);
+      }
+    });
+
+    if (movieCache.has(numericId)) {
+      const cached = movieCache.get(numericId);
+      movieCache.set(numericId, { ...cached, in_watchlist: state });
+    }
+  };
+
+  const emitWatchlistSync = (movieId, state) => {
+    if (!movieId) return;
+    const payload = {
+      movieId: Number(movieId),
+      inWatchlist: Boolean(state),
+      originId: tabInstanceId,
+      timestamp: Date.now(),
+    };
+
+    if (broadcastChannel) {
+      broadcastChannel.postMessage(payload);
+    } else {
+      try {
+        localStorage.setItem(WATCHLIST_SYNC_KEY, JSON.stringify(payload));
+        // Removing the key triggers the storage event in other tabs while keeping local storage clean
+        localStorage.removeItem(WATCHLIST_SYNC_KEY);
+      } catch (_) {}
+    }
+  };
+
+  const handleIncomingWatchlistSync = (payload) => {
+    if (!payload || payload.originId === tabInstanceId) {
+      return;
+    }
+    const { movieId, inWatchlist } = payload;
+    updateAllCardsWatchlistState(movieId, inWatchlist);
+    if (pageContext === 'watchlist') {
+      loadWatchlistGrid();
+    }
+  };
+
+  if (broadcastChannel) {
+    broadcastChannel.addEventListener('message', (event) => handleIncomingWatchlistSync(event.data));
+  } else {
+    window.addEventListener('storage', (event) => {
+      if (event.key === WATCHLIST_SYNC_KEY && event.newValue) {
+        try {
+          const payload = JSON.parse(event.newValue);
+          handleIncomingWatchlistSync(payload);
+        } catch (_) {}
+      }
+    });
+  }
 
   function setText(id, val) { const el = document.getElementById(id); if (el) el.textContent = val; }
   function showLoading() {
@@ -29,11 +345,83 @@ document.addEventListener('DOMContentLoaded', () => {
     setText('statRating', '-'); setText('statYear', '-'); setText('statGenre', '-'); setText('statRuntime', '-'); setText('statVotes', '-');
     const tc = document.getElementById('trailerContainer'); if (tc) tc.innerHTML = '<div class="loading-spinner"></div>';
   }
-  function openModal() { if (!detailsModal) return; detailsModal.classList.add('active'); document.body.style.overflow = 'hidden'; }
-  function closeModal() { if (!detailsModal) return; detailsModal.classList.remove('active'); document.body.style.overflow = 'auto'; const tc = document.getElementById('trailerContainer'); if (tc) tc.innerHTML = ''; }
+  function openModal() { if (!detailsModal) return; detailsModal.classList.add('active'); refreshBodyScrollLock(); }
+  function closeModal() { if (!detailsModal) return; detailsModal.classList.remove('active'); refreshBodyScrollLock(); const tc = document.getElementById('trailerContainer'); if (tc) tc.innerHTML = ''; }
   if (closeDetailsBtn) closeDetailsBtn.addEventListener('click', closeModal);
   if (detailsModal) detailsModal.addEventListener('click', e => { if (e.target === detailsModal) closeModal(); });
   document.addEventListener('keydown', e => { if (e.key === 'Escape' && detailsModal?.classList.contains('active')) closeModal(); });
+
+  if (addMovieBtn && addMovieModal) {
+    const openAddModal = () => {
+      addMovieModal.classList.add('active');
+      refreshBodyScrollLock();
+      const firstInput = addMovieModal.querySelector('input, textarea');
+      firstInput?.focus();
+    };
+
+    const closeAddModal = () => {
+      addMovieModal.classList.remove('active');
+      refreshBodyScrollLock();
+    };
+
+    addMovieBtn.addEventListener('click', (e) => {
+      e.preventDefault();
+      openAddModal();
+    });
+
+    if (cancelAddMovieBtn) {
+      cancelAddMovieBtn.addEventListener('click', (e) => {
+        e.preventDefault();
+        closeAddModal();
+      });
+    }
+
+    addMovieModal.addEventListener('click', (e) => {
+      if (e.target === addMovieModal) closeAddModal();
+    });
+
+    document.addEventListener('keydown', (e) => {
+      if (e.key === 'Escape' && addMovieModal.classList.contains('active')) {
+        closeAddModal();
+      }
+    });
+
+    const addMovieForm = addMovieModal.querySelector('form');
+    if (addMovieForm) {
+      addMovieForm.addEventListener('submit', (e) => {
+        e.preventDefault();
+        const submitBtn = addMovieForm.querySelector('button[type="submit"]');
+        const formData = new FormData(addMovieForm);
+        const payload = {
+          title: formData.get('titlu')?.toString().trim() || '',
+          director: '',
+          year: formData.get('an_lansare') ? Number(formData.get('an_lansare')) : null,
+          rating: null,
+          description: '',
+        };
+
+        const sendProposal = async () => {
+          submitBtn?.classList.add('loading');
+          try {
+            await jsonFetch(`${apiBase}/submit_movie.php`, {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify(payload),
+            });
+            showAddMovieConfirmation('Film trimis spre verificare. Un administrator îl va analiza înainte de publicare.');
+            addMovieForm.reset();
+            closeAddModal();
+          } catch (err) {
+            showAddMovieConfirmation(err.message || 'Nu am putut trimite propunerea.', 'error');
+          } finally {
+            submitBtn?.classList.remove('loading');
+          }
+        };
+
+        sendProposal();
+      });
+    }
+  }
 
   // ---------- TMDb helpers ----------
   async function tmdbFindByImdb(imdbId) {
@@ -57,9 +445,22 @@ document.addEventListener('DOMContentLoaded', () => {
     const j = await r.json();
     return j.results || [];
   }
-  // Detalii cu fallback de limbă + includere video languages
-  async function tmdbDetails(id, lang = 'ro-RO') {
-    const url = new URL(`https://api.themoviedb.org/3/movie/${id}`);
+
+  async function tmdbTvSearch(title, year) {
+    const url = new URL('https://api.themoviedb.org/3/search/tv');
+    url.searchParams.set('api_key', TMDB_API_KEY);
+    url.searchParams.set('query', title);
+    url.searchParams.set('include_adult', 'false');
+    if (year) url.searchParams.set('first_air_date_year', year);
+    const r = await fetch(url.toString());
+    if (!r.ok) throw new Error('TMDb search error');
+    const j = await r.json();
+    return j.results || [];
+  }
+
+  async function tmdbDetailsGeneric(id, mediaType = 'movie', lang = 'ro-RO') {
+    const path = mediaType === 'tv' ? 'tv' : 'movie';
+    const url = new URL(`https://api.themoviedb.org/3/${path}/${id}`);
     url.searchParams.set('api_key', TMDB_API_KEY);
     url.searchParams.set('append_to_response', 'credits,videos');
     url.searchParams.set('language', lang);
@@ -67,25 +468,49 @@ document.addEventListener('DOMContentLoaded', () => {
     const r = await fetch(url.toString());
     if (!r.ok) throw new Error('TMDb details error');
     const d = await r.json();
-    if (lang === 'ro-RO' && (!d.overview || d.overview.trim() === '' || !d.title)) {
+
+    const titleField = mediaType === 'tv' ? 'name' : 'title';
+    const originalTitleField = mediaType === 'tv' ? 'original_name' : 'original_title';
+    const overviewEmpty = !d.overview || String(d.overview).trim() === '';
+    const titleEmpty = !d[titleField] || String(d[titleField]).trim() === '';
+
+    if (lang === 'ro-RO' && (overviewEmpty || titleEmpty)) {
       try {
-        const en = await tmdbDetails(id, 'en-US');
+        const en = await tmdbDetailsGeneric(id, mediaType, 'en-US');
         d.overview = d.overview || en.overview;
-        d.title = d.title || en.title || en.original_title;
+        d[titleField] = d[titleField] || en[titleField] || en[originalTitleField];
         d.genres = d.genres?.length ? d.genres : en.genres;
-        d.runtime = d.runtime || en.runtime;
+        if (mediaType === 'tv') {
+          d.episode_run_time = (d.episode_run_time?.length ? d.episode_run_time : en.episode_run_time);
+        } else {
+          d.runtime = d.runtime || en.runtime;
+        }
         d.vote_average = d.vote_average || en.vote_average;
         d.vote_count = d.vote_count || en.vote_count;
         d.credits = d.credits?.cast?.length ? d.credits : en.credits;
         d.videos = d.videos?.results?.length ? d.videos : en.videos;
       } catch {}
     }
+
     return d;
+  }
+  // Detalii cu fallback de limbă + includere video languages
+  async function tmdbDetails(id, lang = 'ro-RO') {
+    return tmdbDetailsGeneric(id, 'movie', lang);
+  }
+
+  async function tmdbTvDetails(id, lang = 'ro-RO') {
+    return tmdbDetailsGeneric(id, 'tv', lang);
   }
   
   // Funcție pentru a obține review-uri
   async function tmdbReviews(id) {
-    const url = new URL(`https://api.themoviedb.org/3/movie/${id}/reviews`);
+    return tmdbReviewsGeneric(id, 'movie');
+  }
+
+  async function tmdbReviewsGeneric(id, mediaType = 'movie') {
+    const path = mediaType === 'tv' ? 'tv' : 'movie';
+    const url = new URL(`https://api.themoviedb.org/3/${path}/${id}/reviews`);
     url.searchParams.set('api_key', TMDB_API_KEY);
     url.searchParams.set('language', 'en-US');
     const r = await fetch(url.toString());
@@ -95,7 +520,12 @@ document.addEventListener('DOMContentLoaded', () => {
   }
   
   async function tmdbVideos(id, lang) {
-    const url = new URL(`https://api.themoviedb.org/3/movie/${id}/videos`);
+    return tmdbVideosGeneric(id, 'movie', lang);
+  }
+
+  async function tmdbVideosGeneric(id, mediaType = 'movie', lang) {
+    const path = mediaType === 'tv' ? 'tv' : 'movie';
+    const url = new URL(`https://api.themoviedb.org/3/${path}/${id}/videos`);
     url.searchParams.set('api_key', TMDB_API_KEY);
     if (lang) url.searchParams.set('language', lang);
     url.searchParams.set('include_video_language', 'en,null,ro-RO');
@@ -116,7 +546,7 @@ document.addEventListener('DOMContentLoaded', () => {
   }
 
   // ---------- Etapa 1: YouTube API, Etapa 2: TMDb videos ----------
-  async function resolveTrailerKey(title, year, tmdbId, card) {
+  async function resolveTrailerKey(title, year, tmdbId, card, mediaType = 'movie') {
     // 1) YouTube API
     if (YOUTUBE_API_KEY && YOUTUBE_API_KEY !== 'YOUR_YOUTUBE_KEY') {
       try {
@@ -150,13 +580,13 @@ document.addEventListener('DOMContentLoaded', () => {
 
     // 2) TMDb videos (ro-RO -> en-US -> fără limbă)
     try {
-      const v1 = await tmdbVideos(tmdbId, 'ro-RO');
+      const v1 = await tmdbVideosGeneric(tmdbId, mediaType, 'ro-RO');
       let key = pickTrailerKey(v1);
       if (key) return key;
-      const v2 = await tmdbVideos(tmdbId, 'en-US');
+      const v2 = await tmdbVideosGeneric(tmdbId, mediaType, 'en-US');
       key = pickTrailerKey(v2);
       if (key) return key;
-      const v3 = await tmdbVideos(tmdbId);
+      const v3 = await tmdbVideosGeneric(tmdbId, mediaType);
       key = pickTrailerKey(v3);
       if (key) return key;
     } catch (_) {}
@@ -169,24 +599,60 @@ document.addEventListener('DOMContentLoaded', () => {
   function preload(src) { return new Promise((res, rej) => { const i = new Image(); i.onload = () => res(src); i.onerror = rej; i.src = src; }); }
 
   // ---------- Postere pe Home ----------
+  let posterObserver = null;
   async function setCardPoster(card) {
     if (!TMDB_API_KEY || TMDB_API_KEY === 'YOUR_TMDB_KEY') return;
+    if (card.dataset.placeholder === '1') return;
+
+    const dbPosterUrl = card.dataset.posterUrl || '';
+    if (dbPosterUrl) {
+      const el = card.querySelector('.poster');
+      if (!el) return;
+      el.style.backgroundImage = `url(${dbPosterUrl})`;
+      el.style.backgroundSize = 'cover';
+      el.style.backgroundPosition = 'center';
+      const ft = el.querySelector('.fallback-title');
+      if (ft) ft.style.opacity = '0';
+      return;
+    }
+
     const imdbId = card.dataset.imdb;
     const title = card.dataset.title || card.querySelector('h3')?.textContent?.trim();
     const year = (card.dataset.year || '').slice(0, 4);
+    const mediaType = card.dataset.category === 'series' ? 'tv' : 'movie';
 
     try {
-      let tmdbObj = await tmdbFindByImdb(imdbId).catch(() => null);
-      if (!tmdbObj) {
-        const list = await tmdbSearch(title, year);
-        tmdbObj = list
-          .sort((a,b)=>(b.vote_count||0)-(a.vote_count||0))
-          .find(r => (r.title||'').toLowerCase() === (title||'').toLowerCase() ||
-                     (r.release_date||'').startsWith(year)) || list[0];
-      }
-      if (!tmdbObj) return;
+      // If the card already has a TMDb id from the DB, do not re-discover it.
+      let tmdbId = card.dataset.tmdb ? Number(card.dataset.tmdb) : 0;
+      let tmdbObj = null;
 
-      card.dataset.tmdb = tmdbObj.id;
+      if (!tmdbId) {
+        if (mediaType === 'movie') {
+          tmdbObj = await tmdbFindByImdb(imdbId).catch(() => null);
+          if (!tmdbObj) {
+            const list = await tmdbSearch(title, year);
+            tmdbObj = list
+              .sort((a,b)=>(b.vote_count||0)-(a.vote_count||0))
+              .find(r => (r.title||'').toLowerCase() === (title||'').toLowerCase() ||
+                         (r.release_date||'').startsWith(year)) || list[0];
+          }
+        } else {
+          const list = await tmdbTvSearch(title, year);
+          tmdbObj = list
+            .sort((a,b)=>(b.vote_count||0)-(a.vote_count||0))
+            .find(r => (r.name||'').toLowerCase() === (title||'').toLowerCase() ||
+                       (r.first_air_date||'').startsWith(year)) || list[0];
+        }
+
+        if (!tmdbObj?.id) return;
+        tmdbId = tmdbObj.id;
+        card.dataset.tmdb = String(tmdbId);
+      }
+
+      if (!tmdbObj) {
+        const d = mediaType === 'tv' ? await tmdbTvDetails(tmdbId) : await tmdbDetails(tmdbId);
+        tmdbObj = d;
+      }
 
       const posterUrl = tmdbObj.poster_path ? `${POSTER_BASE}${tmdbObj.poster_path}`
                        : tmdbObj.backdrop_path ? `${BACKDROP_BASE}${tmdbObj.backdrop_path}` : null;
@@ -204,7 +670,27 @@ document.addEventListener('DOMContentLoaded', () => {
       console.warn('TMDb card poster failed:', title, e);
     }
   }
-  function hydrateCardPosters() { document.querySelectorAll('.film-card').forEach(setCardPoster); }
+
+  function hydrateCardPosters(scope = document) {
+    const cards = scope.querySelectorAll('.film-card');
+    if (!('IntersectionObserver' in window)) {
+      cards.forEach(setCardPoster);
+      return;
+    }
+
+    if (!posterObserver) {
+      posterObserver = new IntersectionObserver((entries) => {
+        entries.forEach((entry) => {
+          if (!entry.isIntersecting) return;
+          const card = entry.target;
+          posterObserver.unobserve(card);
+          setCardPoster(card);
+        });
+      }, { rootMargin: '300px 0px', threshold: 0.01 });
+    }
+
+    cards.forEach((card) => posterObserver.observe(card));
+  }
 
   // ---------- Click pe suggestion => DETALII + TRAILER ----------
   document.querySelectorAll('.suggestion-item').forEach(item => {
@@ -307,13 +793,13 @@ document.addEventListener('DOMContentLoaded', () => {
   });
 
   // Funcție pentru a încărca și afișa review-uri
-  async function loadReviews(tmdbId) {
+  async function loadReviews(tmdbId, mediaType = 'movie') {
     const userReviewsSection = document.getElementById('userReviewsSection');
     
     if (!userReviewsSection) return;
     
     try {
-      const reviews = await tmdbReviews(tmdbId);
+      const reviews = await tmdbReviewsGeneric(tmdbId, mediaType);
       
       if (reviews.length === 0) {
         userReviewsSection.innerHTML = '<p style="color: #8b949e;">Nu există review-uri disponibile.</p>';
@@ -349,34 +835,47 @@ document.addEventListener('DOMContentLoaded', () => {
     }
   }
   
+  const starElements = document.querySelectorAll('.star');
+  const starRatingContainer = document.querySelector('.star-rating');
+  const ratingValueEl = document.getElementById('ratingValue');
+  const reviewTextInput = document.getElementById('reviewText');
+  const submitReviewBtn = document.getElementById('submitReviewBtn');
+
   // Funcție pentru a reseta formularul de review
   function resetReviewForm() {
-    const stars = document.querySelectorAll('.star');
-    stars.forEach(star => star.classList.remove('active'));
-    stars.forEach(star => star.textContent = '☆');
-    document.getElementById('ratingValue').textContent = '0/10';
-    document.getElementById('reviewText').value = '';
+    starElements.forEach(star => {
+      star.classList.remove('active');
+      star.textContent = '☆';
+    });
+    if (ratingValueEl) {
+      ratingValueEl.textContent = '0/10';
+    }
+    if (reviewTextInput) {
+      reviewTextInput.value = '';
+    }
   }
   
   // Sistem de rating cu stele
   let selectedRating = 0;
   
-  document.querySelectorAll('.star').forEach(star => {
-    star.addEventListener('click', function() {
-      selectedRating = parseInt(this.dataset.rating);
-      updateStars(selectedRating);
-      document.getElementById('ratingValue').textContent = `${selectedRating}/10`;
+  if (starElements.length && starRatingContainer && ratingValueEl) {
+    starElements.forEach(star => {
+      star.addEventListener('click', function() {
+        selectedRating = parseInt(this.dataset.rating, 10);
+        updateStars(selectedRating);
+        ratingValueEl.textContent = `${selectedRating}/10`;
+      });
+      
+      star.addEventListener('mouseenter', function() {
+        const rating = parseInt(this.dataset.rating, 10);
+        updateStars(rating, true);
+      });
     });
     
-    star.addEventListener('mouseenter', function() {
-      const rating = parseInt(this.dataset.rating);
-      updateStars(rating, true);
+    starRatingContainer.addEventListener('mouseleave', function() {
+      updateStars(selectedRating);
     });
-  });
-  
-  document.querySelector('.star-rating').addEventListener('mouseleave', function() {
-    updateStars(selectedRating);
-  });
+  }
   
   function updateStars(rating, isHover = false) {
     const stars = document.querySelectorAll('.star');
@@ -393,26 +892,28 @@ document.addEventListener('DOMContentLoaded', () => {
   }
   
   // Buton submit review
-  document.getElementById('submitReviewBtn').addEventListener('click', function() {
-    const reviewText = document.getElementById('reviewText').value.trim();
-    
-    if (selectedRating === 0) {
-      alert('Te rugăm să selectezi un rating!');
-      return;
-    }
-    
-    if (reviewText === '') {
-      alert('Te rugăm să scrii un review!');
-      return;
-    }
-    
-    // Adaugă review-ul în lista
-    addUserReview(reviewText, selectedRating);
-    
-    // Reset formular
-    resetReviewForm();
-    selectedRating = 0;
-  });
+  if (submitReviewBtn && reviewTextInput) {
+    submitReviewBtn.addEventListener('click', function() {
+      const reviewText = reviewTextInput.value.trim();
+      
+      if (selectedRating === 0) {
+        alert('Te rugăm să selectezi un rating!');
+        return;
+      }
+      
+      if (reviewText === '') {
+        alert('Te rugăm să scrii un review!');
+        return;
+      }
+      
+      // Adaugă review-ul în lista
+      addUserReview(reviewText, selectedRating);
+      
+      // Reset formular
+      resetReviewForm();
+      selectedRating = 0;
+    });
+  }
   
   // Funcție pentru a adăuga review-ul utilizatorului în listă
   function addUserReview(content, rating) {
@@ -480,277 +981,772 @@ document.addEventListener('DOMContentLoaded', () => {
     }, 3000);
   }
 
-  // ---------- Click pe card => DETALII + TRAILER ----------
-  document.querySelectorAll('.film-card').forEach(card => {
-    card.addEventListener('click', async (e) => {
-      if (e.target.closest?.('.watchlist-btn')) return;
+  async function handleFilmCardSelection(card) {
+    const title = card.dataset.title || card.querySelector('h3')?.textContent?.trim();
+    const yearHint = (card.dataset.year || '').slice(0, 4);
+    const posterEl = document.getElementById('detailsPoster');
+    const posterTitle = document.getElementById('detailsPosterTitle');
+    const mediaType = card.dataset.category === 'series' ? 'tv' : 'movie';
 
-      const title = card.dataset.title || card.querySelector('h3')?.textContent?.trim();
-      const yearHint = (card.dataset.year || '').slice(0, 4);
-      const posterEl = document.getElementById('detailsPoster');
-      const posterTitle = document.getElementById('detailsPosterTitle');
+    showLoading();
+    const color = card.dataset.color || card.querySelector('.poster')?.style.backgroundColor || '#0d1117';
+    if (posterEl && posterTitle) {
+      posterEl.style.background = color;
+      posterEl.style.backgroundImage = 'none';
+      posterTitle.textContent = title || '';
+      posterTitle.style.display = 'block';
+    }
+    openModal();
+    if (typeof syncWatchlistButtonState === 'function') {
+      syncWatchlistButtonState(card);
+    }
+    activeCardRef = card;
 
-      // pre-loader + fallback culoare
-      showLoading();
-      const color = card.dataset.color || card.querySelector('.poster')?.style.backgroundColor || '#0d1117';
-      if (posterEl && posterTitle) {
-        posterEl.style.background = color;
-        posterEl.style.backgroundImage = 'none';
-        posterTitle.textContent = title || '';
-        posterTitle.style.display = 'block';
+    try {
+      if (!TMDB_API_KEY || TMDB_API_KEY === 'YOUR_TMDB_KEY') throw new Error('Lipsește TMDb key');
+
+      // găsește TMDb id (IMDb -> search)
+      const imdbId = card.dataset.imdb;
+      let tmdbId = card.dataset.tmdb || null;
+      if (imdbId && !tmdbId) { const f = await tmdbFindByImdb(imdbId).catch(()=>null); if (f) tmdbId = f.id; }
+      if (!tmdbId) {
+        const results = mediaType === 'tv' ? await tmdbTvSearch(title, yearHint) : await tmdbSearch(title, yearHint);
+        const best = results
+          .sort((a,b)=>(b.vote_count||0)-(a.vote_count||0))
+          .find(r => {
+            if (mediaType === 'tv') {
+              return (r.name||'').toLowerCase() === (title||'').toLowerCase() || (r.first_air_date||'').startsWith(yearHint);
+            }
+            return (r.title||'').toLowerCase() === (title||'').toLowerCase() || (r.release_date||'').startsWith(yearHint);
+          }) || results[0];
+        tmdbId = best?.id;
       }
-      openModal();
+      if (!tmdbId) throw new Error('TMDb search: no result');
 
-      try {
-        if (!TMDB_API_KEY || TMDB_API_KEY === 'YOUR_TMDB_KEY') throw new Error('Lipsește TMDb key');
+      const d = mediaType === 'tv' ? await tmdbTvDetails(tmdbId) : await tmdbDetails(tmdbId);
 
-        // găsește TMDb id (IMDb -> search)
-        const imdbId = card.dataset.imdb;
-        let tmdbId = card.dataset.tmdb || null;
-        if (imdbId && !tmdbId) { const f = await tmdbFindByImdb(imdbId).catch(()=>null); if (f) tmdbId = f.id; }
-        if (!tmdbId) {
-          const results = await tmdbSearch(title, yearHint);
-          const best = results
-            .sort((a,b)=>(b.vote_count||0)-(a.vote_count||0))
-            .find(r => (r.title||'').toLowerCase() === (title||'').toLowerCase() ||
-                       (r.release_date||'').startsWith(yearHint)) || results[0];
-          tmdbId = best?.id;
-        }
-        if (!tmdbId) throw new Error('TMDb search: no result');
-
-        const d = await tmdbDetails(tmdbId);
-
-        // Poster în modal (din TMDb)
-        if (d.poster_path) {
-          posterEl.style.backgroundImage = `url(${POSTER_BASE}${d.poster_path})`;
-          posterEl.style.backgroundSize = 'cover';
-          posterEl.style.backgroundPosition = 'center';
-          if (posterTitle) posterTitle.style.display = 'none';
-        }
-
-        // Mapare câmpuri
-        const year = d.release_date ? String(d.release_date).slice(0, 4) : '-';
-        const genres = Array.isArray(d.genres) ? d.genres.map(g => g.name).join(', ') : '-';
-        const runtime = d.runtime ? `${d.runtime} min` : 'N/A';
-        const rating = d.vote_average ? d.vote_average.toFixed(1) : '-';
-        const votes = d.vote_count ? fmt(d.vote_count) : 'N/A';
-        const desc = d.overview && d.overview.trim() !== '' ? d.overview : 'Fără descriere.';
-        const directors = (d.credits?.crew || []).filter(p => p.job === 'Director').map(p => p.name);
-        const actors = (d.credits?.cast || []).slice(0, 6).map(p => p.name);
-
-        setText('detailsTitle', d.title || title || '');
-        setText('detailsYear', year);
-        setText('detailsGenre', genres);
-        setText('detailsRuntime', `⏱ ${runtime}`);
-        setText('detailsRating', `${rating}/10`);
-        setText('aboutMovie', desc);
-        setText('directorName', directors.length ? directors.join(', ') : 'N/A');
-        setText('actorsList', actors.length ? actors.join(', ') : 'N/A');
-        setText('statRating', `${rating}/10`);
-        setText('statYear', year);
-        setText('statGenre', genres);
-        setText('statRuntime', runtime);
-        setText('statVotes', votes);
-
-        // Încărcare review-uri
-        loadReviews(tmdbId);
-        
-        // Reset rating și textarea
-        resetReviewForm();
-
-        // Etapa 1: YouTube -> Etapa 2: TMDb -> Fallback local
-        const trailerKey = await resolveTrailerKey(d.title || title, year, tmdbId, card);
-        const tc = document.getElementById('trailerContainer');
-        if (tc) {
-          tc.innerHTML = trailerKey
-            ? `<iframe width="100%" height="100%" src="https://www.youtube.com/embed/${trailerKey}?autoplay=0" frameborder="0" allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture" allowfullscreen></iframe>`
-            : '<p style="text-align:center; color:#c9d1d9; padding:50px;">Trailer indisponibil</p>';
-        }
-
-        // memo
-        card.dataset.tmdb = tmdbId;
-        detailsModal.dataset.currentMovie = d.title || title || '';
-      } catch (err) {
-        console.error('TMDb/Trailer error:', err);
-        // fallback minimal: date din card
-        const info = card.querySelector('.info p')?.textContent || '';
-        const parts = info.split('•').map(s => s.trim());
-        const year = card.dataset.year || parts[0] || 'N/A';
-        const genre = card.dataset.genre || parts[1] || 'N/A';
-        const rating = card.dataset.rating || (parts[2]?.replace('/10', '') || 'N/A');
-        const desc = card.dataset.description || card.querySelector('.hover p')?.textContent || 'Fără descriere.';
-        setText('detailsTitle', title || '');
-        setText('detailsYear', year);
-        setText('detailsGenre', genre);
-        setText('detailsRuntime', '⏱ N/A');
-        setText('detailsRating', `${rating}/10`);
-        setText('aboutMovie', desc);
-        setText('directorName', 'N/A');
-        setText('actorsList', 'N/A');
-        setText('statRating', `${rating}/10`);
-        setText('statYear', year);
-        setText('statGenre', genre);
-        setText('statRuntime', 'N/A');
-        setText('statVotes', 'N/A');
-        const tc = document.getElementById('trailerContainer');
-        const fb = card.dataset.trailerId || fallbackTrailerIds[title] || null;
-        if (tc) {
-          tc.innerHTML = fb
-            ? `<iframe width="100%" height="100%" src="https://www.youtube.com/embed/${fb}?autoplay=0" frameborder="0" allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture" allowfullscreen></iframe>`
-            : '<p style="text-align:center; color:#c9d1d9; padding:50px;">Trailer indisponibil</p>';
-        }
+      if (d.poster_path) {
+        posterEl.style.backgroundImage = `url(${POSTER_BASE}${d.poster_path})`;
+        posterEl.style.backgroundSize = 'cover';
+        posterEl.style.backgroundPosition = 'center';
+        if (posterTitle) posterTitle.style.display = 'none';
       }
-    });
-  });
+
+      const year = mediaType === 'tv'
+        ? (d.first_air_date ? String(d.first_air_date).slice(0, 4) : '-')
+        : (d.release_date ? String(d.release_date).slice(0, 4) : '-');
+      const genres = Array.isArray(d.genres) ? d.genres.map(g => g.name).join(', ') : '-';
+      const runtime = mediaType === 'tv'
+        ? (Array.isArray(d.episode_run_time) && d.episode_run_time.length ? `${d.episode_run_time[0]} min/ep` : 'N/A')
+        : (d.runtime ? `${d.runtime} min` : 'N/A');
+      const rating = d.vote_average ? d.vote_average.toFixed(1) : '-';
+      const votes = d.vote_count ? fmt(d.vote_count) : 'N/A';
+      const desc = d.overview && d.overview.trim() !== '' ? d.overview : 'Fără descriere.';
+      const directors = mediaType === 'tv'
+        ? (Array.isArray(d.created_by) ? d.created_by.map(p => p.name).filter(Boolean) : [])
+        : (d.credits?.crew || []).filter(p => p.job === 'Director').map(p => p.name);
+      const actors = (d.credits?.cast || []).slice(0, 6).map(p => p.name);
+
+      setText('detailsTitle', (mediaType === 'tv' ? (d.name || d.original_name) : (d.title || d.original_title)) || title || '');
+      setText('detailsYear', year);
+      setText('detailsGenre', genres);
+      setText('detailsRuntime', `⏱ ${runtime}`);
+      setText('detailsRating', `${rating}/10`);
+      setText('aboutMovie', desc);
+      setText('directorName', directors.length ? directors.join(', ') : 'N/A');
+      setText('actorsList', actors.length ? actors.join(', ') : 'N/A');
+      setText('statRating', `${rating}/10`);
+      setText('statYear', year);
+      setText('statGenre', genres);
+      setText('statRuntime', runtime);
+      setText('statVotes', votes);
+
+      loadReviews(tmdbId, mediaType);
+      resetReviewForm();
+
+      const trailerKey = await resolveTrailerKey((mediaType === 'tv' ? (d.name || title) : (d.title || title)), year, tmdbId, card, mediaType);
+      const tc = document.getElementById('trailerContainer');
+      if (tc) {
+        tc.innerHTML = trailerKey
+          ? `<iframe width="100%" height="100%" src="https://www.youtube.com/embed/${trailerKey}?autoplay=0" frameborder="0" allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture" allowfullscreen></iframe>`
+          : '<p style="text-align:center; color:#c9d1d9; padding:50px;">Trailer indisponibil</p>';
+      }
+
+      card.dataset.tmdb = tmdbId;
+      detailsModal.dataset.currentMovie = (mediaType === 'tv' ? (d.name || title) : (d.title || title)) || '';
+      detailsModal.dataset.mediaType = mediaType;
+      if (card.dataset.movieId) {
+        detailsModal.dataset.movieId = card.dataset.movieId;
+      }
+    } catch (err) {
+      console.error('TMDb/Trailer error:', err);
+      const info = card.querySelector('.info p')?.textContent || '';
+      const parts = info.split('•').map(s => s.trim());
+      const year = card.dataset.year || parts[0] || 'N/A';
+      const genre = card.dataset.genre || parts[1] || 'N/A';
+      const rating = card.dataset.rating || (parts[2]?.replace('/10', '') || 'N/A');
+      const desc = card.dataset.description || card.querySelector('.hover p')?.textContent || 'Fără descriere.';
+      setText('detailsTitle', title || '');
+      setText('detailsYear', year);
+      setText('detailsGenre', genre);
+      setText('detailsRuntime', '⏱ N/A');
+      setText('detailsRating', `${rating}/10`);
+      setText('aboutMovie', desc);
+      setText('directorName', 'N/A');
+      setText('actorsList', 'N/A');
+      setText('statRating', `${rating}/10`);
+      setText('statYear', year);
+      setText('statGenre', genre);
+      setText('statRuntime', 'N/A');
+      setText('statVotes', 'N/A');
+      const tc = document.getElementById('trailerContainer');
+      const fb = card.dataset.trailerId || fallbackTrailerIds[title] || null;
+      if (tc) {
+        tc.innerHTML = fb
+          ? `<iframe width="100%" height="100%" src="https://www.youtube.com/embed/${fb}?autoplay=0" frameborder="0" allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture" allowfullscreen></iframe>`
+          : '<p style="text-align:center; color:#c9d1d9; padding:50px;">Trailer indisponibil</p>';
+      }
+      if (card.dataset.movieId) {
+        detailsModal.dataset.movieId = card.dataset.movieId;
+      }
+    }
+  }
+
+  wireFilmCards();
 
   // Watchlist (dacă ai endpoint)
   if (watchlistBtn) {
     let isInWatchlist = false;
-    let originalText = '+ Adaugă în Watchlist';
-    
-    // Funcție pentru a schimba textul la hover
-    const updateHoverText = () => {
-      if (isInWatchlist) {
-        watchlistBtn.addEventListener('mouseenter', function handleMouseEnter() {
-          this.setAttribute('data-original-text', this.innerHTML);
-          this.innerHTML = '<span>Șterge din Watchlist?</span>';
-          this.classList.add('hover-delete');
-        });
-        
-        watchlistBtn.addEventListener('mouseleave', function handleMouseLeave() {
-          const original = this.getAttribute('data-original-text');
-          if (original) {
-            this.innerHTML = original;
-          }
-          this.classList.remove('hover-delete');
-        });
-      }
+    let currentMovieId = null;
+
+    const refreshWatchlistButton = () => {
+      watchlistBtn.innerHTML = isInWatchlist
+        ? '<span>✓ În Watchlist</span>'
+        : '<span>+ Adaugă în Watchlist</span>';
+      watchlistBtn.classList.toggle('in-watchlist', isInWatchlist);
     };
-    
-    watchlistBtn.addEventListener('click', async function () {
-      const movieTitle = detailsModal?.dataset.currentMovie;
-      if (!movieTitle) return;
-      
+
+    const setWatchlistState = (state, movieId) => {
+      isInWatchlist = Boolean(state);
+      if (movieId) {
+        currentMovieId = movieId;
+      }
+      refreshWatchlistButton();
+      detailsModal.dataset.inWatchlist = isInWatchlist ? '1' : '0';
+    };
+
+    watchlistBtn.addEventListener('click', async () => {
+      const movieId = Number(detailsModal?.dataset.movieId || currentMovieId || 0);
+      if (!movieId) {
+        alert('Selectează un film pentru a-l adăuga în watchlist.');
+        return;
+      }
+
       try {
         if (isInWatchlist) {
-          // Șterge din watchlist
-          const res = await fetch('remove_from_watchlist.php', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
-            body: `movie=${encodeURIComponent(movieTitle)}`
+          await jsonFetch(`${apiBase}/watchlist.php`, {
+            method: 'DELETE',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ movie_id: movieId })
           });
-          const json = await res.json();
-          
-          if (json.success) {
-            this.innerHTML = '<span>+ Adaugă în Watchlist</span>';
-            this.classList.remove('in-watchlist');
-            isInWatchlist = false;
-          } else {
-            alert(json.message || 'Eroare la ștergere');
-          }
+          setWatchlistState(false, movieId);
+          updateAllCardsWatchlistState(movieId, false);
+          emitWatchlistSync(movieId, false);
+          showAddMovieConfirmation('Filmul a fost eliminat din watchlist.');
+          await refreshWatchlistViewIfNeeded();
         } else {
-          // Adaugă în watchlist
-          const res = await fetch('add_to_watchlist.php', {
+          await jsonFetch(`${apiBase}/watchlist.php`, {
             method: 'POST',
-            headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
-            body: `movie=${encodeURIComponent(movieTitle)}`
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ movie_id: movieId })
           });
-          const json = await res.json();
-          
-          if (json.success) {
-            this.innerHTML = '<span>✓ În Watchlist</span>';
-            this.classList.add('in-watchlist');
-            isInWatchlist = true;
-            updateHoverText();
-          } else {
-            alert(json.message || 'Eroare la adăugare');
-          }
+          setWatchlistState(true, movieId);
+          updateAllCardsWatchlistState(movieId, true);
+          emitWatchlistSync(movieId, true);
+          showAddMovieConfirmation('Filmul a fost adăugat în watchlist.');
+          await refreshWatchlistViewIfNeeded();
         }
-      } catch { 
-        alert('Eroare de rețea'); 
+      } catch (err) {
+        alert(err.message || 'Eroare la actualizarea watchlist-ului');
       }
     });
+
+    syncWatchlistButtonState = (card) => {
+      if (!card) return;
+      const state = card.dataset.inWatchlist === '1';
+      currentMovieId = Number(card.dataset.movieId || 0) || currentMovieId;
+      setWatchlistState(state, currentMovieId);
+    };
   }
 
-  // Pornește încărcarea posterelor cardurilor
+  // Pornește încărcarea posterelor cardurilor & bootstrap din API
   hydrateCardPosters();
+  bootstrapPageData();
 
-  // ========== SEARCH FUNCTIONALITY ==========
+  const showAdminToast = (message, variant = 'success') => {
+    const toast = adminToast || document.getElementById('globalToast');
+    const toastMessage = adminToastMessage || document.getElementById('globalToastMessage');
+    if (!toast || !toastMessage) return;
+    toastMessage.textContent = message;
+    toast.dataset.variant = variant;
+    toast.style.display = 'flex';
+    requestAnimationFrame(() => toast.classList.add('show'));
+    setTimeout(() => {
+      toast.classList.remove('show');
+      setTimeout(() => {
+        toast.style.display = 'none';
+      }, 250);
+    }, 3500);
+  };
+
+  const initAdminPanel = () => {
+    if (pageContext !== 'admin') return;
+    const actionButtons = document.querySelectorAll('.admin-action[data-movie-id]');
+    const table = document.getElementById('pendingMoviesTable');
+    const tableBody = document.getElementById('pendingMoviesBody');
+    const emptyState = document.getElementById('pendingEmptyState');
+    const pendingCountEl = document.getElementById('pendingMoviesCount');
+    const totalMoviesCountEl = document.getElementById('totalMoviesCount');
+    const usersCountEl = document.getElementById('usersCount');
+
+    const toggleEmptyState = () => {
+      const hasRows = !!tableBody?.querySelector('tr');
+      if (table) {
+        table.style.display = hasRows ? 'table' : 'none';
+      }
+      if (emptyState) {
+        emptyState.style.display = hasRows ? 'none' : 'block';
+      }
+    };
+
+    const updateStats = (stats = {}) => {
+      if (typeof stats.pending !== 'undefined' && pendingCountEl) {
+        pendingCountEl.textContent = stats.pending;
+      }
+      if (typeof stats.total !== 'undefined' && totalMoviesCountEl) {
+        totalMoviesCountEl.textContent = stats.total;
+      }
+    };
+
+    const hasAllTitlesUI = Boolean(totalMoviesCard && allTitlesModal && allTitlesBody);
+    const allTitlesState = {
+      page: 1,
+      perPage: 50,
+      totalPages: 1,
+      totalRows: 0,
+      search: '',
+      status: '',
+      category: '',
+      loading: false,
+      debounce: null,
+    };
+
+    const hasAllUsersUI = Boolean(usersCard && allUsersModal && allUsersBody);
+    const allUsersState = {
+      loading: false,
+      loaded: false,
+      totalRows: 0,
+    };
+
+    const syncAllTitlesMeta = () => {
+      if (allTitlesMeta) {
+        const totalText = allTitlesState.totalRows === 1
+          ? '1 titlu în total'
+          : `${allTitlesState.totalRows} titluri în total`;
+        allTitlesMeta.textContent = totalText;
+      }
+      if (allTitlesPage) {
+        const totalPages = Math.max(1, allTitlesState.totalPages || 1);
+        allTitlesPage.textContent = `Pagina ${allTitlesState.page} / ${totalPages}`;
+      }
+      if (allTitlesPrev) {
+        allTitlesPrev.disabled = allTitlesState.page <= 1 || allTitlesState.loading;
+      }
+      if (allTitlesNext) {
+        allTitlesNext.disabled = allTitlesState.page >= allTitlesState.totalPages || allTitlesState.loading;
+      }
+    };
+
+    const setAllTitlesLoading = (isLoading) => {
+      allTitlesState.loading = isLoading;
+      if (isLoading && allTitlesBody) {
+        allTitlesBody.innerHTML = '<tr><td colspan="6">Se încarcă lista...</td></tr>';
+        if (allTitlesTable) {
+          allTitlesTable.style.display = 'table';
+        }
+        if (allTitlesEmpty) {
+          allTitlesEmpty.style.display = 'none';
+        }
+      }
+      syncAllTitlesMeta();
+    };
+
+    const renderAllTitles = (rows = []) => {
+      if (!allTitlesBody) return;
+      if (!rows.length) {
+        allTitlesBody.innerHTML = '';
+        if (allTitlesTable) {
+          allTitlesTable.style.display = 'none';
+        }
+        if (allTitlesEmpty) {
+          allTitlesEmpty.style.display = 'block';
+        }
+        return;
+      }
+
+      if (allTitlesTable) {
+        allTitlesTable.style.display = 'table';
+      }
+      if (allTitlesEmpty) {
+        allTitlesEmpty.style.display = 'none';
+      }
+
+      allTitlesBody.innerHTML = rows.map((row) => {
+        const year = row.release_year || '—';
+        const rating = row.rating_average ? Number(row.rating_average).toFixed(1) : '—';
+        const category = row.category === 'series' ? 'Serial' : 'Film';
+        const statusLabel = row.status === 'pending'
+          ? 'În așteptare'
+          : (row.status === 'archived' ? 'Arhivat' : 'Publicat');
+        return `
+          <tr>
+            <td>#${row.id}</td>
+            <td>${escapeHtml(row.title || row.original_title || '—')}</td>
+            <td>${category}</td>
+            <td>${statusLabel}</td>
+            <td>${year}</td>
+            <td>${rating}</td>
+          </tr>
+        `;
+      }).join('');
+    };
+
+    const fetchAllTitles = async () => {
+      if (!hasAllTitlesUI) return;
+      setAllTitlesLoading(true);
+      try {
+        const params = new URLSearchParams({
+          page: String(allTitlesState.page),
+          perPage: String(allTitlesState.perPage),
+        });
+        if (allTitlesState.search) params.set('search', allTitlesState.search);
+        if (allTitlesState.status) params.set('status', allTitlesState.status);
+        if (allTitlesState.category) params.set('category', allTitlesState.category);
+
+        const { data, meta } = await jsonFetch(`${apiBase}/admin/catalog.php?${params.toString()}`);
+        allTitlesState.totalPages = meta?.totalPages || 1;
+        allTitlesState.totalRows = meta?.total || 0;
+        renderAllTitles(Array.isArray(data) ? data : []);
+      } catch (err) {
+        renderAllTitles([]);
+        showAdminToast(err.message || 'Nu am putut încărca lista de titluri.', 'error');
+      } finally {
+        setAllTitlesLoading(false);
+      }
+    };
+
+    const openAllTitlesModal = () => {
+      if (!hasAllTitlesUI) return;
+      allTitlesModal.classList.add('active');
+      refreshBodyScrollLock();
+      if (!allTitlesState.loading) {
+        fetchAllTitles();
+      }
+      allTitlesSearch?.focus();
+    };
+
+    const closeAllTitlesModal = () => {
+      if (!hasAllTitlesUI) return;
+      allTitlesModal.classList.remove('active');
+      refreshBodyScrollLock();
+    };
+
+    const scheduleTitlesFetch = () => {
+      clearTimeout(allTitlesState.debounce);
+      allTitlesState.debounce = setTimeout(() => {
+        allTitlesState.page = 1;
+        fetchAllTitles();
+      }, 300);
+    };
+
+    if (hasAllTitlesUI) {
+      totalMoviesCard.addEventListener('click', openAllTitlesModal);
+      totalMoviesCard.addEventListener('keydown', (event) => {
+        if (event.key === 'Enter' || event.key === ' ') {
+          event.preventDefault();
+          openAllTitlesModal();
+        }
+      });
+      closeAllTitlesBtn?.addEventListener('click', closeAllTitlesModal);
+      allTitlesModal.addEventListener('click', (event) => {
+        if (event.target === allTitlesModal) {
+          closeAllTitlesModal();
+        }
+      });
+
+      if (allTitlesSearch) {
+        allTitlesSearch.addEventListener('input', (event) => {
+          allTitlesState.search = event.target.value.trim();
+          scheduleTitlesFetch();
+        });
+      }
+
+      allTitlesStatusFilter?.addEventListener('change', (event) => {
+        allTitlesState.status = event.target.value;
+        scheduleTitlesFetch();
+      });
+
+      allTitlesCategoryFilter?.addEventListener('change', (event) => {
+        allTitlesState.category = event.target.value;
+        scheduleTitlesFetch();
+      });
+
+      allTitlesPrev?.addEventListener('click', () => {
+        if (allTitlesState.page > 1 && !allTitlesState.loading) {
+          allTitlesState.page -= 1;
+          fetchAllTitles();
+        }
+      });
+
+      allTitlesNext?.addEventListener('click', () => {
+        if (allTitlesState.page < allTitlesState.totalPages && !allTitlesState.loading) {
+          allTitlesState.page += 1;
+          fetchAllTitles();
+        }
+      });
+
+      allTitlesModal.addEventListener('keydown', (event) => {
+        if (event.key === 'Escape') {
+          closeAllTitlesModal();
+        }
+      });
+    }
+
+    const setAllUsersLoading = (isLoading) => {
+      allUsersState.loading = isLoading;
+      if (isLoading && allUsersBody) {
+        allUsersBody.innerHTML = '<tr><td colspan="7">Se încarcă utilizatorii...</td></tr>';
+        if (allUsersTable) {
+          allUsersTable.style.display = 'table';
+        }
+        if (allUsersEmpty) {
+          allUsersEmpty.style.display = 'none';
+        }
+      }
+    };
+
+    const renderAllUsers = (rows = []) => {
+      if (!allUsersBody) return;
+      if (!rows.length) {
+        allUsersBody.innerHTML = '';
+        if (allUsersTable) {
+          allUsersTable.style.display = 'none';
+        }
+        if (allUsersEmpty) {
+          allUsersEmpty.style.display = 'block';
+        }
+        if (allUsersMeta) {
+          allUsersMeta.textContent = '0 utilizatori';
+        }
+        return;
+      }
+
+      if (allUsersTable) {
+        allUsersTable.style.display = 'table';
+      }
+      if (allUsersEmpty) {
+        allUsersEmpty.style.display = 'none';
+      }
+
+      allUsersBody.innerHTML = rows.map((user) => {
+        const roleLabel = user.role === 'admin' ? 'Admin' : 'User';
+        const watchlistCount = typeof user.watchlist_count === 'number' ? user.watchlist_count : 0;
+        const pendingCount = typeof user.pending_count === 'number' ? user.pending_count : 0;
+        const createdAt = user.created_at ? escapeHtml(user.created_at) : '—';
+        return `
+          <tr>
+            <td>#${user.id}</td>
+            <td>${escapeHtml(user.username || '')}</td>
+            <td>${escapeHtml(user.email || '')}</td>
+            <td>${roleLabel}</td>
+            <td>${watchlistCount}</td>
+            <td>${pendingCount}</td>
+            <td>${createdAt}</td>
+          </tr>
+        `;
+      }).join('');
+
+      if (allUsersMeta) {
+        const total = rows.length;
+        allUsersMeta.textContent = total === 1 ? '1 utilizator' : `${total} utilizatori`;
+      }
+    };
+
+    const fetchAllUsers = async () => {
+      if (!hasAllUsersUI) return;
+      setAllUsersLoading(true);
+      const basePath = window.location.pathname.replace(/[^/]+$/, ''); // path of current dir
+      const primaryUrl = `${basePath}api/admin/users.php`;
+      const fallbackUrl = '/api/admin/users.php';
+      try {
+        let payload;
+        try {
+          payload = await jsonFetch(primaryUrl);
+        } catch (err) {
+          // Retry with absolute root if relative failed
+          payload = await jsonFetch(fallbackUrl);
+        }
+        allUsersState.totalRows = Array.isArray(payload?.data) ? payload.data.length : 0;
+        allUsersState.loaded = true;
+        renderAllUsers(Array.isArray(payload?.data) ? payload.data : []);
+      } catch (err) {
+        renderAllUsers([]);
+        if (allUsersEmpty) {
+          allUsersEmpty.textContent = err.message || 'Nu am putut încărca utilizatorii.';
+          allUsersEmpty.style.display = 'block';
+        }
+        showAdminToast(err.message || 'Nu am putut încărca utilizatorii.', 'error');
+      } finally {
+        setAllUsersLoading(false);
+      }
+    };
+
+    const openAllUsersModal = () => {
+      if (!hasAllUsersUI) return;
+      allUsersModal.classList.add('active');
+      refreshBodyScrollLock();
+      if (!allUsersState.loaded && !allUsersState.loading) {
+        fetchAllUsers();
+      }
+    };
+
+    const closeAllUsersModal = () => {
+      if (!hasAllUsersUI) return;
+      allUsersModal.classList.remove('active');
+      refreshBodyScrollLock();
+    };
+
+    if (hasAllUsersUI) {
+      usersCard.addEventListener('click', openAllUsersModal);
+      usersCard.addEventListener('keydown', (event) => {
+        if (event.key === 'Enter' || event.key === ' ') {
+          event.preventDefault();
+          openAllUsersModal();
+        }
+      });
+      closeAllUsersBtn?.addEventListener('click', closeAllUsersModal);
+      allUsersModal.addEventListener('click', (event) => {
+        if (event.target === allUsersModal) {
+          closeAllUsersModal();
+        }
+      });
+      allUsersModal.addEventListener('keydown', (event) => {
+        if (event.key === 'Escape') {
+          closeAllUsersModal();
+        }
+      });
+    }
+
+    if (actionButtons.length) {
+      actionButtons.forEach((button) => {
+        button.addEventListener('click', async (event) => {
+          event.preventDefault();
+          const movieId = Number(button.dataset.movieId || 0);
+          const action = button.dataset.action;
+          if (!movieId || !action) {
+            showAdminToast('ID film invalid.', 'error');
+            return;
+          }
+
+          button.disabled = true;
+          button.classList.add('loading');
+
+          try {
+            const response = await fetch(`${apiBase}/admin/movies.php`, {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({ movieId, action })
+            });
+
+            const payload = await response.json();
+            if (!response.ok || !payload.success) {
+              throw new Error(payload.error || payload.message || 'Acțiunea a eșuat');
+            }
+
+            const row = button.closest('tr');
+            if (row) {
+              row.remove();
+              toggleEmptyState();
+            }
+
+            updateStats(payload.stats || {});
+
+            showAdminToast(action === 'approve'
+              ? 'Titlul a fost publicat în catalog.'
+              : 'Titlul a fost respins și arhivat.');
+          } catch (error) {
+            showAdminToast(error.message || 'Nu am putut executa acțiunea.', 'error');
+          } finally {
+            button.disabled = false;
+            button.classList.remove('loading');
+          }
+        });
+      });
+    }
+  };
+
+  initAdminPanel();
+
+  // ========== SEARCH FUNCTIONALITATE ========== 
   const searchInput = document.getElementById('search');
   const searchSuggestions = document.getElementById('searchSuggestions');
 
-  if (searchInput && searchSuggestions) {
-    // Show suggestions on focus
-    searchInput.addEventListener('focus', () => {
-      if (searchInput.value.trim() === '') {
-        searchSuggestions.style.display = 'block';
-      }
-    });
-
-    // Filter suggestions on input
-    searchInput.addEventListener('input', (e) => {
-      const query = e.target.value.toLowerCase().trim();
-      const allSuggestions = searchSuggestions.querySelectorAll('.suggestion-item');
-      
-      if (query === '') {
-        // Show all suggestions if empty
-        allSuggestions.forEach(item => item.style.display = 'flex');
-        searchSuggestions.style.display = 'block';
-      } else {
-        // Filter suggestions
-        let hasVisible = false;
-        allSuggestions.forEach(item => {
-          const movieName = (item.dataset.movie || '').toLowerCase();
-          const text = (item.querySelector('.suggestion-text')?.textContent || '').toLowerCase();
-          if (movieName.includes(query) || text.includes(query)) {
-            item.style.display = 'flex';
-            hasVisible = true;
-          } else {
-            item.style.display = 'none';
-          }
-        });
-        searchSuggestions.style.display = hasVisible ? 'block' : 'none';
-      }
-    });
-
-    // Hide suggestions when clicking outside
-    document.addEventListener('click', (e) => {
-      if (!searchInput.contains(e.target) && !searchSuggestions.contains(e.target)) {
-        searchSuggestions.style.display = 'none';
-      }
-    });
-  }
-});
-
-// ========== SCROLL UI: Doar butonul "Sus" ==========
-// Navbar-ul e mereu icon-only cu hover pentru text, deci nu mai avem nevoie de clasa .compact
-window.addEventListener('load', function() {
-  console.log('🔥 Inițializare buton Sus...');
-  
-  const backToTop = document.getElementById('backToTop');
-  
-  if (!backToTop) {
-    console.error('❌ EROARE: Buton #backToTop nu a fost găsit!');
-    return;
-  }
-  
-  function handleScroll() {
-    const scrollY = window.scrollY || window.pageYOffset || document.documentElement.scrollTop;
-    const threshold = 20;
-    
-    if (scrollY > threshold) {
-      backToTop.classList.add('show');
-    } else {
-      backToTop.classList.remove('show');
+  const triggerSuggestionDetails = (item) => {
+    const virtualCard = document.createElement('article');
+    virtualCard.dataset.title = item.dataset.title || item.dataset.movie || item.querySelector('.suggestion-text')?.textContent?.trim() || '';
+    virtualCard.dataset.movieId = item.dataset.movieId || '';
+    virtualCard.dataset.imdb = item.dataset.imdb || '';
+    virtualCard.dataset.tmdb = item.dataset.tmdb || '';
+    virtualCard.dataset.year = item.dataset.year || '';
+    virtualCard.dataset.genre = item.dataset.genre || '';
+    virtualCard.dataset.rating = item.dataset.rating || '';
+    virtualCard.dataset.description = item.dataset.description || '';
+    virtualCard.dataset.color = item.dataset.color || '#0d1117';
+    virtualCard.dataset.category = item.dataset.category || 'movie';
+    if (item.dataset.posterUrl) {
+      virtualCard.dataset.posterUrl = item.dataset.posterUrl;
     }
+    handleFilmCardSelection(virtualCard);
+  };
+
+  if (searchInput && searchSuggestions) {
+    let searchDebounce;
+    let lastQuery = '';
+
+    const showSuggestions = () => {
+      searchSuggestions.style.display = 'block';
+      searchSuggestions.style.maxHeight = '400px';
+      searchSuggestions.style.opacity = '1';
+      searchSuggestions.classList.add('is-open');
+    };
+
+    const hideSuggestions = () => {
+      searchSuggestions.style.opacity = '0';
+      searchSuggestions.style.maxHeight = '0';
+      searchSuggestions.classList.remove('is-open');
+      setTimeout(() => {
+        searchSuggestions.style.display = 'none';
+      }, 200);
+    };
+
+    const renderSuggestions = (items) => {
+      if (!items.length) {
+        searchSuggestions.innerHTML = '<p class="suggestion-empty">Niciun rezultat.</p>';
+        showSuggestions();
+        return;
+      }
+
+      searchSuggestions.innerHTML = items.map(movie => {
+        movieCache.set(movie.id, movie);
+        return `
+          <button type="button" class="suggestion-item"
+            data-movie-id="${movie.id || ''}"
+            data-category="${movie.category === 'series' ? 'series' : 'movie'}"
+            data-title="${escapeHtml(movie.title || '')}"
+            data-imdb="${movie.imdb_id || ''}"
+            data-tmdb="${movie.tmdb_id || ''}"
+            data-year="${movie.release_year || ''}"
+            data-genre="${escapeHtml(movie.genres || '')}"
+            data-rating="${movie.rating_average || ''}"
+            data-description="${escapeHtml(movie.overview || '')}"
+            data-color="${movie.accent_color || '#0d1117'}"
+            data-poster-url="${escapeHtml(movie.poster_url || '')}">
+            <span class="suggestion-icon">🎬</span>
+            <span class="suggestion-text">${escapeHtml(movie.title || '')}</span>
+            <span class="suggestion-year">${movie.release_year || ''}</span>
+          </button>
+        `;
+      }).join('');
+      showSuggestions();
+    };
+
+    const showDefaultSuggestions = async () => {
+      if (defaultSuggestionsLoading) {
+        return;
+      }
+
+      if (defaultSuggestionCache?.length) {
+        renderSuggestions(defaultSuggestionCache);
+        return;
+      }
+
+      try {
+        defaultSuggestionsLoading = true;
+        const { data } = await jsonFetch(`${apiBase}/movies.php?scope=trending&limit=6`);
+        defaultSuggestionCache = data || [];
+        if (defaultSuggestionCache.length) {
+          renderSuggestions(defaultSuggestionCache);
+        }
+      } catch (err) {
+        searchSuggestions.innerHTML = '<p class="suggestion-empty">Tastează pentru a căuta filme.</p>';
+        showSuggestions();
+      } finally {
+        defaultSuggestionsLoading = false;
+      }
+    };
+
+    const fetchSuggestions = async (query) => {
+      if (!query) {
+        if (document.activeElement === searchInput) {
+          await showDefaultSuggestions();
+        } else {
+          hideSuggestions();
+        }
+        return;
+      }
+      try {
+        const { data } = await jsonFetch(`${apiBase}/search.php?q=${encodeURIComponent(query)}`);
+        renderSuggestions(data);
+      } catch (err) {
+        searchSuggestions.innerHTML = `<p class="suggestion-empty">${escapeHtml(err.message)}</p>`;
+        showSuggestions();
+      }
+    };
+
+    searchInput.addEventListener('input', (event) => {
+      const query = event.target.value.trim();
+      if (query === lastQuery) return;
+      lastQuery = query;
+      clearTimeout(searchDebounce);
+      searchDebounce = setTimeout(() => fetchSuggestions(query), 250);
+    });
+
+    searchInput.addEventListener('focus', () => {
+      const query = searchInput.value.trim();
+      if (query) {
+        if (searchSuggestions.childElementCount) {
+          showSuggestions();
+        } else {
+          fetchSuggestions(query);
+        }
+      } else {
+        showDefaultSuggestions();
+      }
+    });
+
+    searchSuggestions.addEventListener('click', (event) => {
+      const item = event.target.closest('.suggestion-item');
+      if (!item) return;
+      triggerSuggestionDetails(item);
+      hideSuggestions();
+    });
+
+    document.addEventListener('click', (event) => {
+      if (!searchInput.contains(event.target) && !searchSuggestions.contains(event.target)) {
+        hideSuggestions();
+      }
+    });
   }
-  
-  window.addEventListener('scroll', handleScroll, { passive: true });
-  window.addEventListener('resize', handleScroll, { passive: true });
-  
-  // Apel inițial
-  handleScroll();
-  console.log('✅ Buton Sus inițializat!');
 });
 
 // animație highlight (siguranță)
@@ -760,62 +1756,130 @@ style.textContent = `
 `;
 document.head.appendChild(style);
 
-// Back to top în modal
-const modalBackToTop = document.getElementById('modalBackToTop');
-const movieDetailsModal = document.getElementById('movieDetailsModal');
+function setupBackToTopButton() {
+  const bootstrap = () => {
+    let button = document.getElementById('backToTopBtn');
+    const backToTopIcon = `
+      <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+        <line x1="12" y1="19" x2="12" y2="5"></line>
+        <polyline points="5 12 12 5 19 12"></polyline>
+      </svg>
+    `;
+    if (!button) {
+      button = document.createElement('button');
+      button.id = 'backToTopBtn';
+      button.className = 'back-to-top-btn';
+      button.type = 'button';
+      button.setAttribute('aria-label', 'Înapoi sus');
+      button.innerHTML = backToTopIcon;
+      document.body.appendChild(button);
+    } else {
+      button.innerHTML = backToTopIcon;
+    }
 
-if (modalBackToTop && movieDetailsModal) {
-  const modalContent = movieDetailsModal.querySelector('.movie-details-content');
-  
-  // Afișează/ascunde butonul pe scroll în modal
-  if (modalContent) {
-    modalContent.addEventListener('scroll', () => {
-      if (modalContent.scrollTop > 300) {
-        modalBackToTop.classList.add('show');
+    const content = document.querySelector('main.content') || document.querySelector('main');
+    const movieDetailsModal = document.getElementById('movieDetailsModal');
+    const modalContent = movieDetailsModal?.querySelector('.movie-details-content') || null;
+
+    const scrollTargets = [window, document, document.documentElement, document.body];
+    if (content && !scrollTargets.includes(content)) scrollTargets.push(content);
+    if (modalContent && !scrollTargets.includes(modalContent)) scrollTargets.push(modalContent);
+
+    const SCROLL_THRESHOLD = 120;
+    const isModalActive = () => movieDetailsModal?.classList.contains('active');
+
+    const smoothScrollToTop = (target, duration = 450) => {
+      const start = target === window
+        ? window.pageYOffset || document.documentElement.scrollTop || document.body.scrollTop || 0
+        : target.scrollTop;
+      if (start <= 0) return;
+      const startTime = performance.now();
+      const easeOutCubic = (t) => 1 - Math.pow(1 - t, 3);
+
+      const animate = (currentTime) => {
+        const elapsed = Math.min((currentTime - startTime) / duration, 1);
+        const eased = easeOutCubic(elapsed);
+        const newPos = start * (1 - eased);
+        if (target === window) {
+          window.scrollTo(0, newPos);
+          document.documentElement.scrollTop = newPos;
+          document.body.scrollTop = newPos;
+        } else {
+          target.scrollTop = newPos;
+        }
+        if (elapsed < 1) {
+          requestAnimationFrame(animate);
+        }
+      };
+
+      requestAnimationFrame(animate);
+    };
+
+    const playButtonAnimation = () => {
+      button.classList.remove('clicked');
+      void button.offsetWidth;
+      button.classList.add('clicked');
+    };
+
+    const toggleVisibility = () => {
+      const windowScroll = window.pageYOffset || document.documentElement.scrollTop || document.body.scrollTop || 0;
+      const contentScroll = content ? content.scrollTop : 0;
+      const modalActive = isModalActive() && modalContent;
+      const modalScroll = modalActive ? modalContent.scrollTop : 0;
+      const scrollPosition = Math.max(windowScroll, contentScroll, modalScroll);
+
+      if (modalActive) {
+        button.dataset.context = 'modal';
+        if (modalScroll > SCROLL_THRESHOLD) {
+          button.classList.add('show');
+        } else {
+          button.classList.remove('show');
+        }
+        return;
+      }
+
+      button.dataset.context = 'page';
+      if (scrollPosition > SCROLL_THRESHOLD) {
+        button.classList.add('show');
       } else {
-        modalBackToTop.classList.remove('show');
+        button.classList.remove('show');
+      }
+    };
+
+    scrollTargets.forEach(target => {
+      if (target && typeof target.addEventListener === 'function') {
+        target.addEventListener('scroll', toggleVisibility, { passive: true });
       }
     });
-  }
-  
-  // Click pe buton - scroll la început
-  modalBackToTop.addEventListener('click', () => {
-    if (modalContent) {
-      modalContent.scrollTo({
-        top: 0,
-        behavior: 'smooth'
-      });
+    if (movieDetailsModal && typeof MutationObserver !== 'undefined') {
+      const modalObserver = new MutationObserver(toggleVisibility);
+      modalObserver.observe(movieDetailsModal, { attributes: true, attributeFilter: ['class'] });
     }
-  });
+    window.addEventListener('resize', toggleVisibility, { passive: true });
+    toggleVisibility();
+
+    button.addEventListener('click', () => {
+      playButtonAnimation();
+      const modalActive = isModalActive() && modalContent;
+      if (modalActive && modalContent.scrollTop > 0) {
+        smoothScrollToTop(modalContent, 700);
+        return;
+      }
+      smoothScrollToTop(window, 600);
+      if (content && content.scrollTop > 0) {
+        smoothScrollToTop(content, 600);
+      }
+    });
+  };
+
+  if (document.readyState === 'loading') {
+    document.addEventListener('DOMContentLoaded', bootstrap, { once: true });
+  } else {
+    bootstrap();
+  }
 }
 
-// Back to top pe site - wrapped în DOMContentLoaded pentru siguranță
-document.addEventListener('DOMContentLoaded', () => {
-  const siteBackToTop = document.getElementById('siteBackToTop');
-
-  if (siteBackToTop) {
-    console.log('Site back to top button found!');
-    
-    // Afișează/ascunde butonul pe scroll
-    window.addEventListener('scroll', () => {
-      if (window.scrollY > 300) {
-        siteBackToTop.classList.add('show');
-      } else {
-        siteBackToTop.classList.remove('show');
-      }
-    });
-    
-    // Click pe buton - scroll la început
-    siteBackToTop.addEventListener('click', () => {
-      window.scrollTo({
-        top: 0,
-        behavior: 'smooth'
-      });
-    });
-  } else {
-    console.log('Site back to top button NOT found!');
-  }
-});
+setupBackToTopButton();
 
 // Detectare mobil + toggle clasă pentru CSS (rulează doar după ce există <body>)
 function setMobileClass() {
@@ -831,3 +1895,31 @@ if (document.readyState === 'loading') {
   setMobileClass();
 }
 window.addEventListener('resize', setMobileClass);
+
+// Toggle dropdown la click
+document.addEventListener('DOMContentLoaded', function() {
+  const dropdownToggle = document.querySelector('.dropdown .nav-link');
+  const dropdown = document.querySelector('.dropdown');
+  const dropdownMenu = document.querySelector('.dropdown-menu');
+  
+  if (dropdownToggle && dropdown && dropdownMenu) {
+    dropdownToggle.addEventListener('click', function(e) {
+      e.preventDefault();
+      e.stopPropagation();
+      dropdown.classList.toggle('active');
+    });
+    
+    // Nu închide dropdown când dai click pe linkurile din el
+    dropdownMenu.addEventListener('click', function(e) {
+      // Permite navigarea - nu preveni default
+      e.stopPropagation();
+    });
+    
+    // Închide dropdown când dai click în afara lui
+    document.addEventListener('click', function(e) {
+      if (!dropdown.contains(e.target)) {
+        dropdown.classList.remove('active');
+      }
+    });
+  }
+});
