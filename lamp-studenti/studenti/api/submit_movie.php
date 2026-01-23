@@ -50,6 +50,7 @@ try {
         'year_exact' => $year,
         'year_null' => $year,
     ]);
+    
     if ($dupStmt->fetchColumn()) {
         json_response(['error' => 'Există deja un titlu cu acest nume/an.'], 409);
     }

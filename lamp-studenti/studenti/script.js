@@ -765,6 +765,10 @@ document.addEventListener('DOMContentLoaded', () => {
         setText('statRuntime', runtime);
         setText('statVotes', votes);
 
+        detailsModal.dataset.currentMovie = d.title || title || '';
+        detailsModal.dataset.tmdbId = String(tmdbId);
+        detailsModal.dataset.mediaType = 'movie';
+
         // Încărcare review-uri
         loadReviews(tmdbId);
         
@@ -782,6 +786,8 @@ document.addEventListener('DOMContentLoaded', () => {
 
         // memo
         detailsModal.dataset.currentMovie = d.title || title || '';
+        detailsModal.dataset.tmdbId = String(tmdbId);
+        detailsModal.dataset.mediaType = 'movie';
         hideLoading();
       } catch (err) {
         console.error('TMDb/Trailer error:', err);
@@ -795,25 +801,64 @@ document.addEventListener('DOMContentLoaded', () => {
   // Funcție pentru a încărca și afișa review-uri
   async function loadReviews(tmdbId, mediaType = 'movie') {
     const userReviewsSection = document.getElementById('userReviewsSection');
-    
     if (!userReviewsSection) return;
-    
+
+    const movieId = Number(detailsModal?.dataset?.movieId || 0);
+    const modalTmdbId = Number(detailsModal?.dataset?.tmdbId || 0);
+
     try {
-      const reviews = await tmdbReviewsGeneric(tmdbId, mediaType);
-      
-      if (reviews.length === 0) {
+      let localReviews = [];
+      if (movieId || modalTmdbId) {
+        const query = movieId ? `movie_id=${movieId}` : `tmdb_id=${modalTmdbId}`;
+        const { data } = await jsonFetch(`${apiBase}/reviews.php?${query}`);
+        localReviews = Array.isArray(data) ? data : [];
+      }
+
+      let tmdbReviews = [];
+      if (tmdbId) {
+        try {
+          tmdbReviews = await tmdbReviewsGeneric(tmdbId, mediaType);
+        } catch (_) {
+          tmdbReviews = [];
+        }
+      }
+
+      const normalizedLocal = localReviews.map(review => ({
+        id: review.id,
+        author: review.username || 'Utilizator',
+        rating: review.rating ? `⭐ ${review.rating}/10` : '',
+        content: review.content || '',
+        created_at: review.created_at || null,
+        source: 'local',
+      }));
+
+      const normalizedTmdb = tmdbReviews.map(review => ({
+        author: review.author || 'Anonymous',
+        rating: review.author_details?.rating ? `⭐ ${review.author_details.rating}/10` : '',
+        content: review.content || '',
+        created_at: review.created_at || null,
+        source: 'tmdb',
+      }));
+
+      const allReviews = [...normalizedLocal, ...normalizedTmdb];
+
+      if (allReviews.length === 0) {
         userReviewsSection.innerHTML = '<p style="color: #8b949e;">Nu există review-uri disponibile.</p>';
         return;
       }
-      
-      // Toate review-urile (în secțiunea de jos)
-      userReviewsSection.innerHTML = reviews.map(review => {
-        const author = review.author || 'Anonymous';
-        const rating = review.author_details?.rating ? `⭐ ${review.author_details.rating}/10` : '';
-        const content = review.content || '';
+
+      userReviewsSection.innerHTML = allReviews.map(review => {
+        const author = escapeHtml(review.author || 'Anonymous');
+        const rating = review.rating || '';
+        const content = escapeHtml(review.content || '');
         const date = review.created_at ? new Date(review.created_at).toLocaleDateString('ro-RO') : '';
         const initial = author.charAt(0).toUpperCase();
-        
+        const sourceLabel = review.source === 'local' ? '<span class="user-review-source">Local</span>' : '';
+        const canDelete = userRole === 'admin' && review.source === 'local' && review.id;
+        const deleteButton = canDelete
+          ? `<button class="review-delete-btn" data-review-id="${review.id}" type="button">Șterge</button>`
+          : '';
+
         return `
           <div class="user-review-item">
             <div class="user-review-header">
@@ -821,14 +866,17 @@ document.addEventListener('DOMContentLoaded', () => {
                 <div class="user-review-avatar">${initial}</div>
                 <span class="user-review-name">${author}</span>
               </div>
-              ${rating ? `<span class="user-review-rating">${rating}</span>` : ''}
+              <div class="user-review-meta">
+                ${sourceLabel}
+                ${rating ? `<span class="user-review-rating">${rating}</span>` : ''}
+                ${deleteButton}
+              </div>
             </div>
             <div class="user-review-content">${content}</div>
             ${date ? `<div class="user-review-date">Publicat pe ${date}</div>` : ''}
           </div>
         `;
       }).join('');
-      
     } catch (err) {
       console.error('Error loading reviews:', err);
       userReviewsSection.innerHTML = '<p style="color: #8b949e;">Eroare la încărcarea review-urilor.</p>';
@@ -893,8 +941,26 @@ document.addEventListener('DOMContentLoaded', () => {
   
   // Buton submit review
   if (submitReviewBtn && reviewTextInput) {
-    submitReviewBtn.addEventListener('click', function() {
+    submitReviewBtn.addEventListener('click', async function() {
       const reviewText = reviewTextInput.value.trim();
+
+      if (!userId) {
+        alert('Trebuie să fii autentificat pentru a trimite un review.');
+        return;
+      }
+
+      const movieId = Number(detailsModal?.dataset?.movieId || 0);
+      const tmdbId = Number(detailsModal?.dataset?.tmdbId || 0);
+      const title = detailsModal?.dataset?.currentMovie || '';
+      const mediaType = detailsModal?.dataset?.mediaType || 'movie';
+      const yearText = document.getElementById('detailsYear')?.textContent?.trim() || '';
+      const releaseYear = Number.parseInt(yearText, 10);
+      const overview = document.getElementById('aboutMovie')?.textContent?.trim() || '';
+
+      if (!movieId && !tmdbId) {
+        alert('Nu pot identifica filmul pentru acest review.');
+        return;
+      }
       
       if (selectedRating === 0) {
         alert('Te rugăm să selectezi un rating!');
@@ -905,13 +971,61 @@ document.addEventListener('DOMContentLoaded', () => {
         alert('Te rugăm să scrii un review!');
         return;
       }
-      
-      // Adaugă review-ul în lista
-      addUserReview(reviewText, selectedRating);
-      
-      // Reset formular
-      resetReviewForm();
-      selectedRating = 0;
+
+      submitReviewBtn.disabled = true;
+
+      try {
+        await jsonFetch(`${apiBase}/reviews.php`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            movie_id: movieId,
+            tmdb_id: tmdbId,
+            title,
+            category: mediaType === 'tv' ? 'series' : 'movie',
+            release_year: Number.isFinite(releaseYear) ? releaseYear : null,
+            overview,
+            rating: selectedRating,
+            content: reviewText,
+          }),
+        });
+
+        showNotification('Review trimis cu succes!', 'success');
+        await loadReviews(detailsModal?.dataset?.tmdbId || detailsModal?.dataset?.currentTmdbId || null, detailsModal?.dataset?.mediaType || 'movie');
+        resetReviewForm();
+        selectedRating = 0;
+      } catch (err) {
+        alert(err?.message || 'Eroare la salvarea review-ului.');
+      } finally {
+        submitReviewBtn.disabled = false;
+      }
+    });
+  }
+
+  if (document.getElementById('userReviewsSection')) {
+    document.getElementById('userReviewsSection').addEventListener('click', async (event) => {
+      const target = event.target;
+      if (!(target instanceof HTMLElement)) return;
+      if (!target.classList.contains('review-delete-btn')) return;
+      if (userRole !== 'admin') return;
+
+      const reviewId = Number(target.dataset.reviewId || 0);
+      if (!reviewId) return;
+
+      const confirmed = await confirmAction('Sigur vrei să ștergi acest review?', 'Șterge');
+      if (!confirmed) return;
+
+      try {
+        await jsonFetch(`${apiBase}/admin/reviews.php`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ review_id: reviewId }),
+        });
+        await loadReviews(detailsModal?.dataset?.tmdbId || null, detailsModal?.dataset?.mediaType || 'movie');
+        showNotification('Review șters.', 'success');
+      } catch (err) {
+        showNotification(err?.message || 'Eroare la ștergere.', 'error');
+      }
     });
   }
   
@@ -979,6 +1093,65 @@ document.addEventListener('DOMContentLoaded', () => {
       notification.style.animation = 'slideOutRight 0.3s ease';
       setTimeout(() => notification.remove(), 300);
     }, 3000);
+  }
+
+  function ensureConfirmDialog() {
+    let overlay = document.getElementById('confirmOverlay');
+    if (overlay) return overlay;
+
+    overlay = document.createElement('div');
+    overlay.id = 'confirmOverlay';
+    overlay.className = 'confirm-overlay';
+    overlay.innerHTML = `
+      <div class="confirm-dialog" role="dialog" aria-modal="true" aria-labelledby="confirmTitle">
+        <h4 id="confirmTitle">Confirmare</h4>
+        <p id="confirmMessage">Ești sigur?</p>
+        <div class="confirm-actions">
+          <button type="button" class="confirm-btn confirm-cancel" id="confirmCancelBtn">Anulează</button>
+          <button type="button" class="confirm-btn confirm-danger" id="confirmOkBtn">Șterge</button>
+        </div>
+      </div>
+    `;
+    document.body.appendChild(overlay);
+    return overlay;
+  }
+
+  function confirmAction(message, okLabel = 'Confirmă') {
+    return new Promise((resolve) => {
+      const overlay = ensureConfirmDialog();
+      const msg = overlay.querySelector('#confirmMessage');
+      const okBtn = overlay.querySelector('#confirmOkBtn');
+      const cancelBtn = overlay.querySelector('#confirmCancelBtn');
+
+      if (msg) msg.textContent = message;
+      if (okBtn) okBtn.textContent = okLabel;
+
+      const cleanup = (result) => {
+        overlay.classList.remove('active');
+        okBtn?.removeEventListener('click', onOk);
+        cancelBtn?.removeEventListener('click', onCancel);
+        overlay.removeEventListener('click', onBackdrop);
+        document.removeEventListener('keydown', onKey);
+        resolve(result);
+      };
+
+      const onOk = () => cleanup(true);
+      const onCancel = () => cleanup(false);
+      const onBackdrop = (e) => {
+        if (e.target === overlay) cleanup(false);
+      };
+      const onKey = (e) => {
+        if (e.key === 'Escape') cleanup(false);
+      };
+
+      okBtn?.addEventListener('click', onOk);
+      cancelBtn?.addEventListener('click', onCancel);
+      overlay.addEventListener('click', onBackdrop);
+      document.addEventListener('keydown', onKey);
+
+      requestAnimationFrame(() => overlay.classList.add('active'));
+      okBtn?.focus();
+    });
   }
 
   async function handleFilmCardSelection(card) {
@@ -1061,6 +1234,13 @@ document.addEventListener('DOMContentLoaded', () => {
       setText('statRuntime', runtime);
       setText('statVotes', votes);
 
+      detailsModal.dataset.currentMovie = (mediaType === 'tv' ? (d.name || title) : (d.title || title)) || '';
+      detailsModal.dataset.mediaType = mediaType;
+      detailsModal.dataset.tmdbId = String(tmdbId);
+      if (card.dataset.movieId) {
+        detailsModal.dataset.movieId = card.dataset.movieId;
+      }
+
       loadReviews(tmdbId, mediaType);
       resetReviewForm();
 
@@ -1073,11 +1253,6 @@ document.addEventListener('DOMContentLoaded', () => {
       }
 
       card.dataset.tmdb = tmdbId;
-      detailsModal.dataset.currentMovie = (mediaType === 'tv' ? (d.name || title) : (d.title || title)) || '';
-      detailsModal.dataset.mediaType = mediaType;
-      if (card.dataset.movieId) {
-        detailsModal.dataset.movieId = card.dataset.movieId;
-      }
     } catch (err) {
       console.error('TMDb/Trailer error:', err);
       const info = card.querySelector('.info p')?.textContent || '';
@@ -1540,12 +1715,18 @@ document.addEventListener('DOMContentLoaded', () => {
           closeAllUsersModal();
         }
       });
-      allUsersModal.addEventListener('keydown', (event) => {
-        if (event.key === 'Escape') {
-          closeAllUsersModal();
-        }
-      });
     }
+
+    // ESC global pentru modalele din admin (utilizatori + titluri)
+    document.addEventListener('keydown', (event) => {
+      if (event.key !== 'Escape') return;
+      if (hasAllUsersUI && allUsersModal?.classList.contains('active')) {
+        closeAllUsersModal();
+      }
+      if (hasAllTitlesUI && allTitlesModal?.classList.contains('active')) {
+        closeAllTitlesModal();
+      }
+    });
 
     if (actionButtons.length) {
       actionButtons.forEach((button) => {

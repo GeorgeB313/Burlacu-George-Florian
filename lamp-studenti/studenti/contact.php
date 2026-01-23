@@ -7,7 +7,6 @@ $dbError = '';
 $name = '';
 $email = '';
 $message = '';
-$messages = [];
 
 try {
   $pdo = db();
@@ -56,13 +55,6 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
   }
 }
 
-if (!$dbError && isset($pdo)) {
-  try {
-    $messages = $pdo->query('SELECT id, nume, email, mesaj, created_at FROM contact_messages ORDER BY id DESC')->fetchAll(PDO::FETCH_ASSOC);
-  } catch (Throwable $e) {
-    $dbError = 'Nu am putut încărca mesajele.';
-  }
-}
 ?>
 <!DOCTYPE html>
 <html lang="ro">
@@ -127,42 +119,6 @@ if (!$dbError && isset($pdo)) {
       </form>
     </div>
 
-    <div class="card">
-      <div style="display:flex; justify-content:space-between; align-items:center; gap:10px; margin-bottom:10px;">
-        <h2 style="margin:0;">Mesaje primite</h2>
-        <span class="badge">Contact DB</span>
-      </div>
-      <?php if ($dbError): ?>
-        <div class="alert"><?= htmlspecialchars($dbError) ?></div>
-      <?php elseif (empty($messages)): ?>
-        <p class="muted">Nu există mesaje încă.</p>
-      <?php else: ?>
-        <div class="table-wrapper">
-          <table aria-label="Mesaje contact">
-            <thead>
-              <tr>
-                <th>ID</th>
-                <th>Nume</th>
-                <th>Email</th>
-                <th>Mesaj</th>
-                <th>Data</th>
-              </tr>
-            </thead>
-            <tbody>
-              <?php foreach ($messages as $row): ?>
-                <tr>
-                  <td>#<?= (int) $row['id'] ?></td>
-                  <td><?= htmlspecialchars($row['nume']) ?></td>
-                  <td><?= htmlspecialchars($row['email']) ?></td>
-                  <td><?= nl2br(htmlspecialchars($row['mesaj'])) ?></td>
-                  <td><?= htmlspecialchars(date('d.m.Y H:i', strtotime($row['created_at']))) ?></td>
-                </tr>
-              <?php endforeach; ?>
-            </tbody>
-          </table>
-        </div>
-      <?php endif; ?>
-    </div>
   </div>
 
   <script>

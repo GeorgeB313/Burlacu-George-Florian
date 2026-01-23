@@ -2437,6 +2437,120 @@ button.loading::after {
   font-weight: 600;
 }
 
+.user-review-meta {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.review-delete-btn {
+  background: rgba(248, 81, 73, 0.12);
+  color: #f85149;
+  border: 1px solid rgba(248, 81, 73, 0.4);
+  padding: 6px 10px;
+  border-radius: 8px;
+  font-size: 12px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.2s ease;
+}
+
+.review-delete-btn:hover {
+  background: rgba(248, 81, 73, 0.2);
+  border-color: rgba(248, 81, 73, 0.7);
+  transform: translateY(-1px);
+  box-shadow: 0 6px 14px rgba(248, 81, 73, 0.25);
+}
+
+.review-delete-btn:active {
+  transform: translateY(0);
+  box-shadow: none;
+}
+
+.confirm-overlay {
+  position: fixed;
+  inset: 0;
+  background: rgba(1, 4, 9, 0.75);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 10050;
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity 0.2s ease;
+}
+
+.confirm-overlay.active {
+  opacity: 1;
+  pointer-events: auto;
+}
+
+.confirm-dialog {
+  background: #0d1117;
+  border: 1px solid #21262d;
+  border-radius: 12px;
+  width: min(92vw, 380px);
+  padding: 20px;
+  box-shadow: 0 20px 40px rgba(0, 0, 0, 0.45);
+  transform: translateY(8px);
+  transition: transform 0.2s ease;
+}
+
+.confirm-overlay.active .confirm-dialog {
+  transform: translateY(0);
+}
+
+.confirm-dialog h4 {
+  margin: 0 0 10px;
+  color: #e6edf3;
+  font-size: 18px;
+}
+
+.confirm-dialog p {
+  margin: 0 0 18px;
+  color: #8b949e;
+  font-size: 14px;
+  line-height: 1.5;
+}
+
+.confirm-actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 10px;
+}
+
+.confirm-btn {
+  border-radius: 8px;
+  padding: 8px 14px;
+  font-weight: 600;
+  font-size: 13px;
+  cursor: pointer;
+  border: 1px solid transparent;
+  transition: all 0.2s ease;
+}
+
+.confirm-cancel {
+  background: transparent;
+  color: #c9d1d9;
+  border-color: #30363d;
+}
+
+.confirm-cancel:hover {
+  background: #161b22;
+}
+
+.confirm-danger {
+  background: rgba(248, 81, 73, 0.12);
+  color: #f85149;
+  border-color: rgba(248, 81, 73, 0.4);
+}
+
+.confirm-danger:hover {
+  background: rgba(248, 81, 73, 0.2);
+  border-color: rgba(248, 81, 73, 0.7);
+  box-shadow: 0 6px 14px rgba(248, 81, 73, 0.25);
+}
+
 .user-review-content {
   color: #e6edf3;
   font-size: 14px;
@@ -3054,6 +3168,7 @@ button.loading::after {
 .section-header h3 {
   margin: 0;
   font-size: 20px;
+  color: #f5f6fb;
 }
 
 .section-header p {

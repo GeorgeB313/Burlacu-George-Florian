@@ -62,5 +62,5 @@ $showAdminLink = ($footerRole === 'admin');
       </ul>
     </div>
   </div>
-  <div class="footer-bottom">© <?php echo date('Y'); ?> MovieHub · Built for studenți</div>
+  <div class="footer-bottom">© <?php echo date('Y'); ?> MovieHub</div>
 </footer>

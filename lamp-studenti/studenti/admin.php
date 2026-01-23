@@ -89,6 +89,8 @@ try {
 
 $pendingMovies = [];
 $recentUsers = [];
+$contactMessages = [];
+$contactError = '';
 $assetVersionCss = file_exists(__DIR__ . '/style.css') ? filemtime(__DIR__ . '/style.css') : time();
 $assetVersionJs = file_exists(__DIR__ . '/script.js') ? filemtime(__DIR__ . '/script.js') : time();
 
@@ -113,6 +115,22 @@ try {
 } catch (PDOException $e) {
     // keep arrays empty
 }
+
+  // Mesaje contact
+  try {
+    $pdo->exec("CREATE TABLE IF NOT EXISTS contact_messages (
+      id INT AUTO_INCREMENT PRIMARY KEY,
+      nume VARCHAR(255) NOT NULL,
+      email VARCHAR(255) NOT NULL,
+      mesaj TEXT NOT NULL,
+      created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+    ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;");
+
+    $stmt = $pdo->query('SELECT id, nume, email, mesaj, created_at FROM contact_messages ORDER BY created_at DESC LIMIT 50');
+    $contactMessages = $stmt->fetchAll(PDO::FETCH_ASSOC);
+  } catch (PDOException $e) {
+    $contactError = 'Nu am putut încărca mesajele de contact.';
+  }
 ?>
 <!DOCTYPE html>
 <html lang="ro">
@@ -260,6 +278,41 @@ try {
         </tbody>
       </table>
       <div class="empty-state" id="pendingEmptyState" style="display:none;">Nu există titluri în așteptare.</div>
+      <?php endif; ?>
+    </section>
+
+    <section class="admin-section">
+      <div class="section-header">
+        <h3>📩 Mesaje de contact</h3>
+        <p>Ultimele mesaje trimise prin formularul public.</p>
+      </div>
+      <?php if ($contactError): ?>
+        <div class="admin-create-alert error">⚠️ <?= htmlspecialchars($contactError) ?></div>
+      <?php elseif (empty($contactMessages)): ?>
+        <div class="empty-state">Nu există mesaje încă.</div>
+      <?php else: ?>
+      <table class="admin-table">
+        <thead>
+          <tr>
+            <th>ID</th>
+            <th>Nume</th>
+            <th>Email</th>
+            <th>Mesaj</th>
+            <th>Data</th>
+          </tr>
+        </thead>
+        <tbody>
+          <?php foreach ($contactMessages as $msg): ?>
+          <tr>
+            <td>#<?php echo (int) $msg['id']; ?></td>
+            <td><?php echo htmlspecialchars($msg['nume']); ?></td>
+            <td><?php echo htmlspecialchars($msg['email']); ?></td>
+            <td><?php echo nl2br(htmlspecialchars($msg['mesaj'])); ?></td>
+            <td><?php echo htmlspecialchars(date('d.m.Y H:i', strtotime($msg['created_at']))); ?></td>
+          </tr>
+          <?php endforeach; ?>
+        </tbody>
+      </table>
       <?php endif; ?>
     </section>
 
